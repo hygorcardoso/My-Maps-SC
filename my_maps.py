@@ -10,27 +10,28 @@ import ssl
 import certifi
 
 # 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="My Maps SC - Filtro Rigoroso", layout="wide")
+st.set_page_config(page_title="My Maps SC", layout="wide")
 
-# 2. CSS PARA REMOVER BORDAS
+# 2. CSS GLOBAL
 st.markdown(
     """
     <style>
-        .block-container {
-            padding: 0rem !important;
-            max-width: 100% !important;
+        .block-container { padding: 0rem !important; max-width: 100% !important; }
+        button[kind="headerNoPadding"] {
+            color: #FFFFFF !important; background-color: #1E1E1E !important;
+            border: 1px solid #333333 !important; border-radius: 5px !important;
+            visibility: visible !important; z-index: 1000001 !important; margin-left: 5px !important;
         }
-        header, footer {
-            display: none !important;
-        }
-        .stButton > button {
-            width: 100%;
-        }
+        header[data-testid="stHeader"] { background-color: transparent !important; z-index: 1000000 !important; }
+        #MainMenu, footer {visibility: hidden;}
+        .map-container { margin-left: 20px !important; margin-right: 20px !important; }
+        .stButton > button { width: 100%; }
     </style>
     """,
     unsafe_allow_html=True
 )
 
+# 3. LÓGICA DE CACHE
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CACHE_FILE = os.path.join(BASE_DIR, "coords_cache.json")
 
@@ -39,125 +40,105 @@ def carregar_cache():
     if os.path.exists(CACHE_FILE):
         try:
             with open(CACHE_FILE, 'r', encoding='utf-8') as f:
-                content = f.read()
-                return json.loads(content) if content else {}
-        except Exception:
+                data = json.load(f)
+                # AJUSTE CRUCIAL: Remove ", BRASIL" das chaves antigas ao carregar
+                novo_cache = {}
+                for k, v in data.items():
+                    chave_limpa = str(k).upper().replace(", BRASIL", "").strip()
+                    novo_cache[chave_limpa] = v
+                return novo_cache
+        except:
             return {}
     return {}
 
 
-# FUNÇÃO DE DETECÇÃO RIGOROSA (V3)
-def detectar_coluna_v3(lista_colunas, termos_exatos, termos_contidos):
-    # Passo 1: Busca EXATA (Ignora espaços e maiúsculas)
-    # Isso evita pegar "NumOfcliente" quando buscamos "UF"
-    for i, col in enumerate(lista_colunas):
-        nome_limpo = str(col).strip().upper()
-        if nome_limpo in [t.upper() for t in termos_exatos]:
-            return i
-
-    # Passo 2: Busca por PALAVRA COMPLETA dentro do nome (Usando split)
-    # Evita pegar termos no meio de outras palavras
-    for i, col in enumerate(lista_colunas):
-        palavras = str(col).strip().upper().replace("_", " ").replace("-", " ").split()
-        if any(t.upper() in palavras for t in termos_exatos):
-            return i
-
-    # Passo 3: Busca por TERMO CONTIDO (Apenas se falhar os anteriores)
-    for i, col in enumerate(lista_colunas):
-        nome_limpo = str(col).strip().lower()
-        if any(t.lower() in nome_limpo for t in termos_contidos):
-            return i
-
-    return 0
+def salvar_cache(cache_data):
+    with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(cache_data, f, indent=4, ensure_ascii=False)
 
 
 if 'cache' not in st.session_state:
     st.session_state.cache = carregar_cache()
-
 if 'mapa_pronto' not in st.session_state:
     st.session_state.mapa_pronto = None
 
-# --- BARRA LATERAL (SIDEBAR) ---
+
+def detectar_coluna(cols, exatos, contidos):
+    for i, col in enumerate(cols):
+        c_up = str(col).strip().upper()
+        if c_up in [t.upper() for t in exatos]: return i
+    for i, col in enumerate(cols):
+        c_low = str(col).strip().lower()
+        if any(t.lower() in c_low for t in contidos): return i
+    return 0
+
+
+# --- BARRA LATERAL ---
 with st.sidebar:
     st.title("📍 My Maps SC")
+    st.caption(f"Cidades em cache: {len(st.session_state.cache)}")
     st.markdown("---")
-
-    arquivo = st.file_uploader("Upload da Planilha Excel", type=["xlsx"])
+    arquivo = st.file_uploader("Upload Excel", type=["xlsx"])
 
     if arquivo:
         xl = pd.ExcelFile(arquivo)
-        aba = st.selectbox("Selecione a Aba", xl.sheet_names)
+        aba = st.selectbox("Aba", xl.sheet_names)
         df = pd.read_excel(arquivo, sheet_name=aba)
-
         cols = df.columns.tolist()
 
-        # LÓGICA RIGOROSA
-        # Cidade: Tenta "Cidade", "Município" exatos primeiro.
-        idx_cidade = detectar_coluna_v3(cols, ["cidade", "municipio", "localidade"], ["cid", "mun"])
+        col_cidade = st.selectbox("Cidade", cols, index=detectar_coluna(cols, ["cidade", "municipio"], ["cid", "mun"]))
+        col_uf = st.selectbox("UF", cols, index=detectar_coluna(cols, ["uf", "estado"], ["uf", "sc"]))
 
-        # UF: Tenta "UF" ou "ESTADO" exatos.
-        # A busca por termo contido "sc" ou "est" só ocorre se não achar "UF".
-        idx_uf = detectar_coluna_v3(cols, ["uf", "estado", "sigla"], ["est", "sc"])
-
-        col_cidade = st.selectbox("Coluna Cidade", cols, index=idx_cidade)
-        col_uf = st.selectbox("Coluna UF", cols, index=idx_uf)
-
-        st.markdown("---")
-        if st.button("⚡ Gerar Mapa", use_container_width=True):
+        if st.button("⚡ Gerar Mapa"):
             st.session_state.mapa_pronto = None
-
             dados = df[[col_cidade, col_uf]].dropna().drop_duplicates()
 
             ctx = ssl.create_default_context(cafile=certifi.where())
-            geolocator = Nominatim(user_agent="mymaps_web_v10_rigorous", ssl_context=ctx)
-
+            geolocator = Nominatim(user_agent="mymaps_sc_v5", ssl_context=ctx)
             m = folium.Map(location=[-27.2, -50.5], zoom_start=8)
 
-            progresso = st.progress(0)
-            status_txt = st.empty()
+            prog = st.progress(0)
+            status = st.empty()
             encontradas = 0
-            cache_alterado = False
+            alterado = False
 
             for i, row in enumerate(dados.itertuples(index=False)):
-                c, u = str(getattr(row, col_cidade)).strip(), str(getattr(row, col_uf)).strip()
-                chave = f"{c}, {u}, Brasil"
+                c = str(getattr(row, col_cidade)).strip()
+                u = str(getattr(row, col_uf)).strip()
 
-                if chave in st.session_state.cache:
-                    pos = st.session_state.cache[chave]
+                # Busca apenas por "CIDADE, UF"
+                chave_busca = f"{c.upper()}, {u.upper()}"
+
+                if chave_busca in st.session_state.cache:
+                    pos = st.session_state.cache[chave_busca]
                     folium.Marker(pos, tooltip=c, popup=c).add_to(m)
                     encontradas += 1
                 else:
-                    status_txt.text(f"🌐 Geocodificando: {c}...")
+                    status.text(f"🌐 Geocodificando: {c}...")
                     try:
-                        loc = geolocator.geocode(chave, timeout=10)
+                        # O Nominatim continua recebendo ", Brasil" para precisão na busca
+                        loc = geolocator.geocode(f"{c}, {u}, Brasil", timeout=10)
                         if loc:
                             pos = [loc.latitude, loc.longitude]
                             folium.Marker(pos, tooltip=c, popup=c).add_to(m)
-                            st.session_state.cache[chave] = pos
+                            st.session_state.cache[chave_busca] = pos
                             encontradas += 1
-                            cache_alterado = True
+                            alterado = True
                         time.sleep(1.1)
-                    except Exception:
+                    except:
                         continue
+                prog.progress((i + 1) / len(dados))
 
-                progresso.progress((i + 1) / len(dados))
-
-            if cache_alterado:
-                with open(CACHE_FILE, 'w', encoding='utf-8') as f:
-                    json.dump(st.session_state.cache, f, indent=4)
-
-            status_txt.success(f"✅ {encontradas} pontos carregados!")
+            if alterado: salvar_cache(st.session_state.cache)
+            status.success(f"✅ {encontradas} pontos carregados!")
             st.session_state.mapa_pronto = m
             st.rerun()
 
 # --- ÁREA PRINCIPAL ---
 if st.session_state.mapa_pronto:
-    st_folium(
-        st.session_state.mapa_pronto,
-        width=1800,
-        height=900,
-        use_container_width=True
-    )
+    st.markdown('<div class="map-container">', unsafe_allow_html=True)
+    st_folium(st.session_state.mapa_pronto, width=1800, height=900, use_container_width=True)
+    st.markdown('</div>', unsafe_allow_html=True)
 else:
     st.container().markdown("<br><br><center><h3>⬅️ Configure os dados na barra lateral</h3></center>",
                             unsafe_allow_html=True)
