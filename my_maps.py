@@ -31,7 +31,8 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-CACHE_FILE = "coords_cache.json"
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+CACHE_FILE = os.path.join(BASE_DIR, "coords_cache.json")
 
 
 def carregar_cache():
