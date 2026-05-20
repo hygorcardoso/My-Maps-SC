@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Streamlit e Mapas
+.streamlit/
+coords_cache.json
+
+# Dados (Proteção de privacidade)
+*.xlsx
+*.xls
+*.csv
+
+# Sistema
+.DS_Store
+.ssh/
+
