@@ -13,7 +13,6 @@ import requests
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="My Maps BR", layout="wide")
 
-
 # --- FUNÇÃO AUXILIAR DE CONFIGURAÇÃO SEGURA ---
 def obter_config(chave, valor_padrao=True):
     try:
@@ -21,12 +20,11 @@ def obter_config(chave, valor_padrao=True):
     except:
         return valor_padrao
 
-
 # Lendo as permissões do arquivo secreto
 CONSEGUI_VER_LISTA = obter_config("HABILITAR_LISTA_CHAMADOS", True)
 CONSEGUI_VER_ROTAS = obter_config("HABILITAR_ABA_ROTAS", True)
 
-# 2. CSS GLOBAL - ALTERADO PARA ENFORÇAR HITBOX E ALTURA NOS COMPONENTES BASE
+# 2. CSS GLOBAL (INCLUINDO A TAG DE VERSÃO NO CANTO INFERIOR DIREITO)
 st.markdown(
     """
     <style>
@@ -44,14 +42,14 @@ st.markdown(
             border: 1px solid #464855;
         }
 
-        /* --- SELETORES ULTRA-AGRESSIVOS PARA OS BOTÕES NATIVOS --- */
-        /* Força a altura real no elemento interno onde o Streamlit aplica o flexbox */
+        /* --- SELETORES PARA OS BOTÕES NATIVOS --- */
         div[data-testid="stButton"] button,
         div[data-testid="stSidebar"] button,
         div[data-testid="stHorizontalBlock"] button,
         .lista-chamados-container button {
             min-height: 55px !important;
             height: 55px !important;
+            line-height: 55px !important;
             font-size: 15px !important;
             font-weight: bold !important;
             display: inline-flex !important;
@@ -97,7 +95,27 @@ st.markdown(
             background-color: #0056b3 !important;
             box-shadow: 0px 6px 16px rgba(0, 123, 255, 0.5) !important;
         }
+
+        /* --- TAG DE VERSÃO FIXA NO CANTO INFERIOR DIREITO --- */
+        .version-footer {
+            position: fixed;
+            bottom: 12px;
+            right: 15px;
+            z-index: 1000005;
+            color: #888c99;
+            font-family: monospace;
+            font-size: 12px;
+            font-weight: bold;
+            background-color: rgba(38, 39, 48, 0.85);
+            padding: 4px 10px;
+            border-radius: 5px;
+            border: 1px solid #464855;
+            pointer-events: none; /* Garante que não bloqueia cliques no mapa por baixo */
+            box-shadow: 0px 2px 8px rgba(0,0,0,0.5);
+        }
     </style>
+
+    <div class="version-footer">v0.2.1</div>
     """,
     unsafe_allow_html=True
 )
@@ -124,7 +142,6 @@ if 'expander_aberto' not in st.session_state:
 if 'coords_sessao' not in st.session_state:
     st.session_state.coords_sessao = {}
 
-
 def mapear_coluna_flexivel(lista_colunas, alvos):
     for col in lista_colunas:
         if str(col).strip().upper() in [t.upper() for t in alvos]:
@@ -134,7 +151,6 @@ def mapear_coluna_flexivel(lista_colunas, alvos):
             if t.lower() in str(col).strip().lower():
                 return col
     return None
-
 
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
@@ -165,8 +181,7 @@ with st.sidebar:
             st.warning("⚠️ Aba padrão não encontrada.")
             aba_selecionada = st.selectbox("Selecione a aba manualmente", abas_disponiveis)
 
-        if is_novo_arquivo or st.session_state.df_final is None or st.sidebar.button("⚡ Gerar / Atualizar Mapa",
-                                                                                     key="btn_gerar"):
+        if is_novo_arquivo or st.session_state.df_final is None or st.sidebar.button("⚡ Gerar / Atualizar Mapa", key="btn_gerar"):
             df_aba = pd.read_excel(arquivo, sheet_name=aba_selecionada)
 
             col_os = mapear_coluna_flexivel(df_aba.columns.tolist(), ["CodOS", "Chamado", "ID", "Ticket"])
@@ -239,9 +254,7 @@ if st.session_state.df_final is not None:
 
             html_icone = f"""<div style="background-color: #FF4B4B; color: white; border: 1px solid #1E1E1E; border-radius: 50%; width: {diametro}px; height: {diametro}px; display: flex; align-items: center; justify-content: center; font-size: {tamanho_fonte}px; font-weight: bold; box-shadow: 0px 0px 8px #FF4B4B;">{qtd_chamados}</div>"""
 
-            folium.Marker(location=pos, icon=folium.DivIcon(html=html_icone, icon_size=(diametro, diametro),
-                                                            icon_anchor=(raio_marcador, raio_marcador)),
-                          tooltip=texto_exibicao, popup=texto_exibicao).add_to(m)
+            folium.Marker(location=pos, icon=folium.DivIcon(html=html_icone, icon_size=(diametro, diametro), icon_anchor=(raio_marcador, raio_marcador)), tooltip=texto_exibicao, popup=texto_exibicao).add_to(m)
         else:
             pontos_para_buscar.append((row, endereco_completo_busca, chave_busca))
 
@@ -261,7 +274,7 @@ if st.session_state.df_final is not None:
 
             html_icone = f"""<div style="background-color: #FF4B4B; color: white; border: 1px solid #1E1E1E; border-radius: 50%; width: {diametro}px; height: {diametro}px; display: flex; align-items: center; justify-content: center; font-size: {tamanho_fonte}px; font-weight: bold; box-shadow: 0px 0px 8px #FF4B4B;">{int(row.qtd)}</div>"""
 
-            status.text(f"🌐 Buscando locais: {cid}-{uf_val} ({idx + 1}/{len(pontos_para_buscar)})...")
+            status.text(f"🌐 Buscando locais: {cid}-{uf_val} ({idx+1}/{len(pontos_para_buscar)})...")
             pos = None
             try:
                 loc = geolocator.geocode(endereco_completo_busca, timeout=3)
@@ -277,23 +290,18 @@ if st.session_state.df_final is not None:
                 pos = None
 
             if pos:
-                folium.Marker(location=pos, icon=folium.DivIcon(html=html_icone, icon_size=(diametro, diametro),
-                                                                icon_anchor=(raio_marcador, raio_marcador)),
-                              tooltip=texto_exibicao, popup=texto_exibicao).add_to(m)
+                folium.Marker(location=pos, icon=folium.DivIcon(html=html_icone, icon_size=(diametro, diametro), icon_anchor=(raio_marcador, raio_marcador)), tooltip=texto_exibicao, popup=texto_exibicao).add_to(m)
 
             prog.progress((idx + 1) / len(pontos_para_buscar))
 
         status.empty()
         prog.empty()
 
-    # --- CORREÇÃO DO ZOOM: SE APLICAM OS BOUNDS DIRETO NO MARCADOR DO FOLIUM ---
     if st.session_state.coords_sessao:
         coordenadas_validas = list(st.session_state.coords_sessao.values())
         lats = [c[0] for c in coordenadas_validas]
         lngs = [c[1] for c in coordenadas_validas]
         st.session_state.map_bounds = [[min(lats), min(lngs)], [max(lats), max(lngs)]]
-
-        # O pulo do gato: aplica a delimitação na raiz do objeto do mapa
         m.fit_bounds(st.session_state.map_bounds)
 
     st.session_state.mapa_pronto = m
@@ -317,7 +325,7 @@ if st.session_state.df_final is not None and CONSEGUI_VER_LISTA:
                     df_botoes['CodOS'].astype(str).str.lower().str.contains(busca_normalizada) |
                     df_botoes['Cidade'].astype(str).str.lower().str.contains(busca_normalizada) |
                     df_botoes['SiglaUF'].astype(str).str.lower().str.contains(busca_normalizada)
-                    ]
+                ]
 
             st.markdown('<div class="lista-chamados-container">', unsafe_allow_html=True)
 
@@ -345,7 +353,7 @@ if st.session_state.df_final is not None and CONSEGUI_VER_LISTA:
                         if busca_endereco in st.session_state.coords_sessao:
                             st.session_state.map_center = st.session_state.coords_sessao[busca_endereco]
                             st.session_state.map_zoom = 17
-                            st.session_state.map_bounds = None  # Força foco individual limpo
+                            st.session_state.map_bounds = None
                         st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
@@ -360,8 +368,6 @@ if st.session_state.mapa_pronto:
     abas_renderizadas = st.tabs(lista_abas_nome)
 
     with abas_renderizadas[0]:
-        # REMOVIDO o argumento 'bounds=' daqui que causava o crash da imagem.
-        # Agora o controle usa chaves reativas baseadas na existência de foco regional
         saída_mapa_geral = st_folium(
             st.session_state.mapa_pronto,
             width=1800,
@@ -393,7 +399,7 @@ if st.session_state.mapa_pronto:
             with col1:
                 origem = st.selectbox("📍 Cidade de Origem", lista_cidades_br, key="origem_rota")
             with col2:
-                def_idx = min(1, len(lista_cidades_br) - 1)
+                def_idx = min(1, len(lista_cidades_br)-1)
                 destino = st.selectbox("🏁 Cidade de Destino", lista_cidades_br, index=def_idx, key="destino_rota")
             with col3:
                 calcular = st.button("🚀 Calcular Rota", use_container_width=True)
@@ -414,85 +420,47 @@ if st.session_state.mapa_pronto:
                     ponto_A = st.session_state.coords_sessao[key_origem]
                     ponto_B = st.session_state.coords_sessao[key_destino]
 
-                    st.write("### 🔄 Rota Dinâmica Ativada")
-                    st.info(
-                        "💡 **Como usar:** Passe o mouse sobre a rota para ver o ponto de controle. Clique e arraste qualquer parte da linha azul para mudar o caminho, igual no Google Maps!")
+                    url_osrm = f"http://router.project-osrm.org/route/v1/driving/{ponto_A[1]},{ponto_A[0]};{ponto_B[1]},{ponto_B[0]}?overview=full&geometries=geojson&alternatives=true"
 
-                    # 1. Injeta os estilos e scripts essenciais no cabeçalho do mapa
-                    m_rota.get_root().header.add_child(
-                        folium.Element(
-                            '<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />')
-                    )
-                    m_rota.get_root().header.add_child(
-                        folium.Element(
-                            '<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>')
-                    )
+                    try:
+                        res = requests.get(url_osrm, timeout=5).json()
+                        if "routes" in res and len(res["routes"]) > 0:
 
-                    # 2. JavaScript corrigido com chaves duplicadas para escapar a f-string do Python
-                    script_rota_arrastavel = f"""
-                                <script>
-                                (function() {{
-                                    function inicializarRota() {{
-                                        var mapInstance = null;
+                            cores_rotas = ["#007BFF", "#6f42c1", "#fd7e14"] 
 
-                                        if (typeof L !== 'undefined' && L.Map && L.Map._maps) {{
-                                            var mapas_ativos = Object.values(L.Map._maps);
-                                            if (mapas_ativos.length > 0) {{
-                                                mapInstance = mapas_ativos[0];
-                                            }}
-                                        }}
+                            st.write("### 🧭 Opções de Trajeto Encontradas:")
 
-                                        if (!mapInstance && typeof L !== 'undefined') {{
-                                            var layers = L.Map.prototype._layers;
-                                            for (var id in layers) {{
-                                                if (layers[id]._container && layers[id]._container.id) {{
-                                                    mapInstance = layers[id];
-                                                    break;
-                                                }}
-                                            }}
-                                        }}
+                            for i, dados_rota in enumerate(res["routes"]):
+                                distancia_km = dados_rota["distance"] / 1000.0
+                                duracao_segundos = dados_rota["duration"]
 
-                                        if (mapInstance) {{
-                                            console.log("Mapa localizado com sucesso. Injetando a rota...");
-                                            L.Routing.control({{
-                                                waypoints: [
-                                                    L.latLng({ponto_A[0]}, {ponto_A[1]}),
-                                                    L.latLng({ponto_B[0]}, {ponto_B[1]})
-                                                ],
-                                                routeWhileDragging: true,
-                                                showAlternatives: true,
-                                                altLineOptions: {{
-                                                    styles: [
-                                                        {{color: '#9400D3', opacity: 0.6, weight: 4}}
-                                                    ]
-                                                }},
-                                                lineOptions: {{
-                                                    styles: [{{color: '#007BFF', opacity: 0.85, weight: 6}}]
-                                                }},
-                                                createMarker: function(i, wp, nWps) {{
-                                                    var label = i === 0 ? "Início" : (i === nWps - 1 ? "Fim" : "Ponto de Desvio");
-                                                    return L.marker(wp.latLng, {{
-                                                        draggable: true
-                                                    }}).bindPopup(label);
-                                                }}
-                                            }}).addTo(mapInstance);
-                                        }} else {{
-                                            console.log("Aguardando mapa renderizar...");
-                                            setTimeout(inicializarRota, 300);
-                                        }}
-                                    }}
+                                horas = int(duracao_segundos // 3600)
+                                minutos = int((duracao_segundos % 3600) // 60)
+                                tempo_txt = f"{horas}h {minutos}min" if horas > 0 else f"{minutos}min"
 
-                                    setTimeout(inicializarRota, 600);
-                                }})();
-                                </script>
-                                """
+                                label_rota = f"Rota Principal (Mais Rápida)" if i == 0 else f"Rota Alternativa {i}"
+                                cor_atual = cores_rotas[i if i < len(cores_rotas) else 0]
 
-                    # Adiciona o script ao HTML final do mapa
-                    m_rota.get_root().html.add_child(folium.Element(script_rota_arrastavel))
+                                st.markdown(f"**🟢 {label_rota}:** 📏 **{distancia_km:.2f} km** | ⏱️ **{tempo_txt}** (Indicada em <span style='color:{cor_atual};font-weight:bold;'>■</span> no mapa)", unsafe_allow_html=True)
 
-                    # Ajusta os limites visuais iniciais do Folium
-                    m_rota.fit_bounds([ponto_A, ponto_B])
+                                coordenadas_linha = dados_rota["geometry"]["coordinates"]
+                                trajeto_folium = [[coord[1], coord[0]] for coord in coordenadas_linha]
+                                folium.PolyLine(
+                                    locations=trajeto_folium, 
+                                    color=cor_atual, 
+                                    weight=6 if i == 0 else 4, 
+                                    opacity=0.8 if i == 0 else 0.6, 
+                                    tooltip=f"{label_rota}: {distancia_km:.1f}km"
+                                ).add_to(m_rota)
 
+                            folium.Marker(location=ponto_A, popup="Início", icon=folium.Icon(color='green', icon='play')).add_to(m_rota)
+                            folium.Marker(location=ponto_B, popup="Fim", icon=folium.Icon(color='black', icon='stop')).add_to(m_rota)
+
+                            m_rota.fit_bounds([ponto_A, ponto_B])
+                        else:
+                            st.error("Não foi possível calcular o traçado.")
+                    except Exception as e:
+                        st.error(f"Erro de conexão ao servidor de rotas: {e}")
                 else:
                     st.error("Coordenadas não encontradas no mapa atual.")
 
