@@ -149,6 +149,12 @@ st.markdown(
             box-shadow: 0px 6px 16px rgba(0, 123, 255, 0.5) !important;
         }
 
+        /* Estilização para o st.radio horizontal simular abas clássicas */
+        div[data-testid="stRadio"] div[role="radiogroup"] {
+            gap: 10px;
+            margin-bottom: 5px;
+        }
+
         /* --- PREPARA O CONTAINER INTERNO DA SIDEBAR --- */
         div[data-testid="stSidebarUserContent"], 
         .st-emotion-cache-1r1cntt, 
@@ -206,6 +212,10 @@ if 'expander_aberto' not in st.session_state:
 if 'coords_sessao' not in st.session_state:
     st.session_state.coords_sessao = {}
 
+# Sincronizador reativo da aba selecionada no painel principal
+if 'aba_ativa' not in st.session_state:
+    st.session_state.aba_ativa = "🗺️ Visão Geral"
+
 
 def mapear_coluna_flexivel(lista_colunas, alvos):
     for col in lista_colunas:
@@ -244,7 +254,7 @@ with st.sidebar:
             st.warning("⚠️ Aba padrão não encontrada.")
             aba_selecionada = st.selectbox("Selecione a aba manualmente", abas_disponiveis)
 
-        if is_novo_arquivo or st.session_state.df_final is None or st.sidebar.button("⚡ Gerar / Atualizar Mapa",
+        if is_novo_arquivo or st.session_state.df_final is None or st.sidebar.button("⚡ Atualizar Mapa",
                                                                                      key="btn_gerar"):
             df_aba = pd.read_excel(arquivo, sheet_name=aba_selecionada)
 
@@ -332,6 +342,7 @@ if st.session_state.df_final is not None:
     df = st.session_state.df_final
     dados_mapa = df.dropna(subset=['Endereco', 'Cidade', 'SiglaUF'])
 
+    # Correção do nome unificado: grupo_pontos (com o) em todas as instâncias do escopo
     grupo_pontos = dados_mapa.groupby(['Endereco', 'Cidade', 'SiglaUF']).agg(
         qtd=('CodOS', 'size'),
         clientes=('Cliente', lambda x: " / ".join(x.astype(str).unique())),
@@ -446,121 +457,80 @@ if st.session_state.df_final is not None:
 
     st.session_state.mapa_pronto = m
 
-# --- RENDERIZAÇÃO DA SIDEBAR CONDICIONAL ---
-if st.session_state.df_final is not None and CONSEGUI_VER_LISTA:
+# --- 3. RENDERIZAÇÃO DA SIDEBAR CONDICIONAL (BASEADA NA ABA ATIVA) ---
+if st.session_state.df_final is not None:
     with st.sidebar:
-        df = st.session_state.df_final
-        df_botoes = df.copy()
-        df_botoes['OS_Num'] = pd.to_numeric(df_botoes['CodOS'], errors='coerce')
-        df_botoes = df_botoes.sort_values(by=['SiglaUF', 'Cidade', 'OS_Num', 'CodOS'])
+        if st.session_state.aba_ativa == "🗺️ Visão Geral" and CONSEGUI_VER_LISTA:
+            df = st.session_state.df_final
+            df_botoes = df.copy()
+            df_botoes['OS_Num'] = pd.to_numeric(df_botoes['CodOS'], errors='coerce')
+            df_botoes = df_botoes.sort_values(by=['SiglaUF', 'Cidade', 'OS_Num', 'CodOS'])
 
-        st.markdown("---")
-        with st.expander(f"📋 Lista de Chamados ({len(df_botoes)})", expanded=st.session_state.expander_aberto):
-            busca = st.text_input("🔍 Pesquisar por OS, Cidade ou UF:", placeholder="Ex: PR...")
+            st.markdown("---")
+            with st.expander(f"📋 Lista de Chamados ({len(df_botoes)})", expanded=st.session_state.expander_aberto):
+                busca = st.text_input("🔍 Pesquisar por OS, Cidade ou UF:", placeholder="Ex: PR...")
 
-            if busca:
-                st.session_state.expander_aberto = True
-                busca_normalizada = str(busca).strip().lower()
-                df_botoes = df_botoes[
-                    df_botoes['CodOS'].astype(str).str.lower().str.contains(busca_normalizada) |
-                    df_botoes['Cidade'].astype(str).str.lower().str.contains(busca_normalizada) |
-                    df_botoes['SiglaUF'].astype(str).str.lower().str.contains(busca_normalizada)
-                    ]
+                if busca:
+                    st.session_state.expander_aberto = True
+                    busca_normalizada = str(busca).strip().lower()
+                    df_botoes = df_botoes[
+                        df_botoes['CodOS'].astype(str).str.lower().str.contains(busca_normalizada) |
+                        df_botoes['Cidade'].astype(str).str.lower().str.contains(busca_normalizada) |
+                        df_botoes['SiglaUF'].astype(str).str.lower().str.contains(busca_normalizada)
+                        ]
 
-            st.markdown('<div class="lista-chamados-container">', unsafe_allow_html=True)
+                st.markdown('<div class="lista-chamados-container">', unsafe_allow_html=True)
 
-            if df_botoes.empty:
-                st.caption("⚠️ Nenhum chamado encontrado.")
-            else:
-                for idx, row in enumerate(df_botoes.itertuples(index=False)):
-                    cham = str(row.CodOS)
-                    cid = str(row.Cidade)
-                    uf_val = str(row.SiglaUF)
-                    rua_completa = str(row.Endereco)
+                if df_botoes.empty:
+                    st.caption("⚠️ Nenhum chamado encontrado.")
+                else:
+                    for idx, row in enumerate(df_botoes.itertuples(index=False)):
+                        cham = str(row.CodOS)
+                        cid = str(row.Cidade)
+                        uf_val = str(row.SiglaUF)
+                        rua_completa = str(row.Endereco)
 
-                    is_selecionado = (str(st.session_state.chamado_selecionado) == cham)
-                    prefixo = "🔷" if is_selecionado else "🔵"
-                    label_botao = f"{prefixo} [{cid}-{uf_val}] OS: {cham}"
+                        is_selecionado = (str(st.session_state.chamado_selecionado) == cham)
+                        prefixo = "🔷" if is_selecionado else "🔵"
+                        label_botao = f"{prefixo} [{cid}-{uf_val}] OS: {cham}"
 
-                    if st.button(label_botao, key=f"btn_os_{cham}_{idx}"):
-                        st.session_state.chamado_selecionado = cham
-                        st.session_state.expander_aberto = True
+                        if st.button(label_botao, key=f"btn_os_{cham}_{idx}"):
+                            st.session_state.chamado_selecionado = cham
+                            st.session_state.expander_aberto = True
 
-                        busca_endereco = f"{rua_completa.strip()}, {cid.strip()} - {uf_val.strip()}, Brasil".upper().strip()
-                        if busca_endereco not in st.session_state.coords_sessao:
-                            busca_endereco = " ".join(busca_endereco.split())
+                            busca_endereco = f"{rua_completa.strip()}, {cid.strip()} - {uf_val.strip()}, Brasil".upper().strip()
+                            if busca_endereco not in st.session_state.coords_sessao:
+                                busca_endereco = " ".join(busca_endereco.split())
 
-                        if busca_endereco in st.session_state.coords_sessao:
-                            st.session_state.map_center = st.session_state.coords_sessao[busca_endereco]
-                            st.session_state.map_zoom = 17
-                            st.session_state.map_bounds = None
-                        st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
+                            if busca_endereco in st.session_state.coords_sessao:
+                                st.session_state.map_center = st.session_state.coords_sessao[busca_endereco]
+                                st.session_state.map_zoom = 17
+                                st.session_state.map_bounds = None
+                            st.rerun()
+                st.markdown('</div>', unsafe_allow_html=True)
 
-# --- ÁREA PRINCIPAL COM CONTROLE DE ABAS ---
-if st.session_state.mapa_pronto:
-    st.markdown('<div class="map-container">', unsafe_allow_html=True)
-
-    lista_abas_nome = ["🗺️ Visão Geral"]
-    if CONSEGUI_VER_ROTAS:
-        lista_abas_nome.append("🚗 Traçar Rotas")
-
-    abas_renderizadas = st.tabs(lista_abas_nome)
-
-    with abas_renderizadas[0]:
-        saída_mapa_geral = st_folium(
-            st.session_state.mapa_pronto,
-            width=1800,
-            height=850,
-            use_container_width=True,
-            returned_objects=["last_object_clicked"],
-            center=st.session_state.map_center,
-            zoom=st.session_state.map_zoom,
-            key=f"mapa_geral_lat_{st.session_state.map_center[0]}_lng_{st.session_state.map_center[1]}_zoom_{st.session_state.map_zoom}_bnd_{len(st.session_state.coords_sessao)}"
-        )
-
-        if saída_mapa_geral and saída_mapa_geral.get("last_object_clicked"):
-            lat_clicada = saída_mapa_geral["last_object_clicked"]["lat"]
-            lng_clicada = saída_mapa_geral["last_object_clicked"]["lng"]
-            nova_posicao = [lat_clicada, lng_clicada]
-            if nova_posicao != st.session_state.map_center or st.session_state.map_zoom != 17:
-                st.session_state.map_center = nova_posicao
-                st.session_state.map_zoom = 17
-                st.session_state.map_bounds = None
-                st.rerun()
-
-    if CONSEGUI_VER_ROTAS:
-        with abas_renderizadas[1]:
+        elif st.session_state.aba_ativa == "🚗 Traçar Rotas" and CONSEGUI_VER_ROTAS:
+            st.markdown("---")
+            st.markdown("### 🚗 Configurar Rota")
             df_rotas = st.session_state.df_final
 
-            # Formata os labels de cada chamado para o menu multiselect conforme imagem
             df_rotas['Label_Selecao'] = "OS: " + df_rotas['CodOS'] + " | " + df_rotas['Cliente'] + " (" + df_rotas[
                 'Cidade'] + "-" + df_rotas['SiglaUF'] + ")"
             lista_opcoes_chamados = sorted(df_rotas['Label_Selecao'].tolist())
 
-            # RESTAURAÇÃO EXATA DO LAYOUT SOLICITADO (IMAGE_7DF2F1.PNG)
-            col1, col2 = st.columns([2.5, 2.5])
-            with col1:
-                endereco_partida_livre = st.text_input(
-                    "📍 Endereço de Partida Livre (Ex: Rua, Cidade - Estado)",
-                    placeholder="Digite a base, hotel ou local inicial...",
-                    key="partida_livre_input"
-                )
-            with col2:
-                chamados_escolhidos_labels = st.multiselect(
-                    "📌 Selecione os chamados para incluir nesta rota:",
-                    options=lista_opcoes_chamados,
-                    key="chamados_manuais_rota"
-                )
+            endereco_partida_livre = st.text_input(
+                "📍 Endereço de Partida Livre",
+                placeholder="Ex: Rua, Cidade - Estado...",
+                key="partida_livre_input"
+            )
+            chamados_escolhidos_labels = st.multiselect(
+                "📌 Selecione os chamados para a rota:",
+                options=lista_opcoes_chamados,
+                key="chamados_manuais_rota"
+            )
 
-            calcular = st.button("🚀 Gerar Itinerário por Prioridade", use_container_width=True)
+            calcular = st.button("🚀 Gerar Itinerário", use_container_width=True)
 
-            m_rota = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
-            for child in st.session_state.mapa_pronto._children.values():
-                if isinstance(child, folium.Marker):
-                    child.add_to(m_rota)
-
-            # Processa e calcula as coordenadas da rota ordenada por prioridade
             if calcular:
                 if not endereco_partida_livre:
                     st.error("❌ Por favor, digite um endereço válido no ponto de partida.")
@@ -583,15 +553,11 @@ if st.session_state.mapa_pronto:
                         pos_partida = None
 
                     if pos_partida:
-                        # Filtra os chamados que o usuário escolheu no multiselect
                         df_selecionados = df_rotas[df_rotas['Label_Selecao'].isin(chamados_escolhidos_labels)].copy()
-
-                        # Ordena de forma automática por urgência (Peso_Prioridade descendo, SLA subindo)
                         df_ordenado_prioridade = df_selecionados.sort_values(
                             by=['Peso_Prioridade', 'SLA_Data'],
                             ascending=[False, True]
                         )
-
                         st.session_state.dados_rota_ativa = {
                             'ponto_partida': pos_partida,
                             'origem_nome': endereco_partida_livre,
@@ -599,26 +565,72 @@ if st.session_state.mapa_pronto:
                         }
                         st.rerun()
                     else:
-                        st.error(
-                            "❌ Não conseguimos localizar as coordenadas do endereço de partida. Tente incluir a Cidade e o Estado.")
+                        st.error("❌ Não conseguimos localizar as coordenadas do endereço de partida.")
 
-            # Renderização persistente com suporte avançado a 3 rotas alternativas
-            if 'dados_rota_ativa' in st.session_state:
-                dados = st.session_state.dados_rota_ativa
-                ponto_partida = dados['ponto_partida']
+# --- 4. ÁREA PRINCIPAL COM CONTROLE DE REATIVIDADE DE INTERFACE ---
+if st.session_state.mapa_pronto:
+    st.markdown('<div class="map-container">', unsafe_allow_html=True)
 
-                st.write("### 🧭 Itinerário Otimizado Ativo:")
+    lista_abas_nome = ["🗺️ Visão Geral"]
+    if CONSEGUI_VER_ROTAS:
+        lista_abas_nome.append("🚗 Traçar Rotas")
+
+    aba_selecionada = st.radio(
+        "Navegação",
+        options=lista_abas_nome,
+        horizontal=True,
+        label_visibility="collapsed",
+        index=lista_abas_nome.index(st.session_state.aba_ativa) if st.session_state.aba_ativa in lista_abas_nome else 0
+    )
+
+    if aba_selecionada != st.session_state.aba_ativa:
+        st.session_state.aba_ativa = aba_selecionada
+        st.rerun()
+
+    if st.session_state.aba_ativa == "🗺️ Visão Geral":
+        saída_mapa_geral = st_folium(
+            st.session_state.mapa_pronto,
+            width=1800,
+            height=850,
+            use_container_width=True,
+            returned_objects=["last_object_clicked"],
+            center=st.session_state.map_center,
+            zoom=st.session_state.map_zoom,
+            key=f"mapa_geral_lat_{st.session_state.map_center[0]}_lng_{st.session_state.map_center[1]}_zoom_{st.session_state.map_zoom}_bnd_{len(st.session_state.coords_sessao)}"
+        )
+
+        if saída_mapa_geral and saída_mapa_geral.get("last_object_clicked"):
+            lat_clicada = saída_mapa_geral["last_object_clicked"]["lat"]
+            lng_clicada = saída_mapa_geral["last_object_clicked"]["lng"]
+            nova_posicao = [lat_clicada, lng_clicada]
+            if nova_posicao != st.session_state.map_center or st.session_state.map_zoom != 17:
+                st.session_state.map_center = nova_posicao
+                st.session_state.map_zoom = 17
+                st.session_state.map_bounds = None
+                st.rerun()
+
+    elif st.session_state.aba_ativa == "🚗 Traçar Rotas" and CONSEGUI_VER_ROTAS:
+        m_rota = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
+        for child in st.session_state.mapa_pronto._children.values():
+            if isinstance(child, folium.Marker):
+                child.add_to(m_rota)
+
+        if 'dados_rota_ativa' in st.session_state:
+            dados = st.session_state.dados_rota_ativa
+            ponto_partida = dados['ponto_partida']
+
+            coords_rota = [f"{ponto_partida[1]},{ponto_partida[0]}"]
+            dados_para_bounds = [ponto_partida]
+
+            folium.Marker(
+                location=ponto_partida,
+                icon=folium.Icon(color='purple', icon='play', prefix='fa'),
+                tooltip="🛫 Ponto Inicial Customizado",
+                popup=f"<b>Origem da Rota:</b><br>{dados['origem_nome']}"
+            ).add_to(m_rota)
+
+            with st.expander("🧭 Itinerário Otimizado Ativo:", expanded=False):
                 st.markdown(f"**🛫 Ponto de Partida Livre:** {dados['origem_nome']}")
-
-                coords_rota = [f"{ponto_partida[1]},{ponto_partida[0]}"]
-                dados_para_bounds = [ponto_partida]
-
-                folium.Marker(
-                    location=ponto_partida,
-                    icon=folium.Icon(color='purple', icon='play', prefix='fa'),
-                    tooltip="🛫 Ponto Inicial Customizado",
-                    popup=f"<b>Origem da Rota:</b><br>{dados['origem_nome']}"
-                ).add_to(m_rota)
 
                 for idx, chamado in enumerate(dados['chamados']):
                     key_chamado = f"{str(chamado['Endereco']).strip()}, {str(chamado['Cidade']).strip()} - {str(chamado['SiglaUF']).strip()}, Brasil".upper().strip()
@@ -633,88 +645,116 @@ if st.session_state.mapa_pronto:
                         data_sla = chamado['SLA'] if chamado['Peso_Prioridade'] != 0 else "Sem SLA"
 
                         st.markdown(
-                            f"**📌 {idx + 1}ª Parada:** OS: `{chamado['CodOS']}` | {chamado['Cliente']} — *{chamado['Cidade']}* | **[{selo} — SLA: {data_sla}]**")
+                            f"**📌 {idx + 1}ª Parada:** OS: `{chamado['CodOS']}` | {chamado['Cliente']} — *{chamado['Cidade']}-{chamado['SiglaUF']}* | **[{selo} — SLA: {data_sla}]**")
 
-                # Conecta as paradas gerando os trajetos alternativos estáveis do OSRM
-                if len(coords_rota) > 1:
-                    try:
-                        url_osrm = f"http://router.project-osrm.org/route/v1/driving/{';'.join(coords_rota)}?overview=full&geometries=geojson&alternatives=true"
-                        res = requests.get(url_osrm).json()
+            if len(coords_rota) > 1:
+                try:
+                    url_osrm = f"http://router.project-osrm.org/route/v1/driving/{';'.join(coords_rota)}?overview=full&geometries=geojson&alternatives=true"
+                    res = requests.get(url_osrm).json()
 
-                        if res.get('routes'):
-                            rotas_retornadas = res['routes']
-                            cores_linhas = ['#007BFF', '#9400D3', '#FF8C00']
-                            labels_linhas = ['🚀 Rota Principal (Mais Rápida)', '🔄 Caminho Alternativo 1',
-                                             '🔄 Caminho Alternativo 2']
+                    if res.get('routes'):
+                        rotas_retornadas = res['routes']
+                        cores_linhas = ['#007BFF', '#9400D3', '#FF8C00']
+                        labels_linhas = ['🚀 Rota Principal (Mais Rápida)', '🔄 Caminho Alternativo 1',
+                                         '🔄 Caminho Alternativo 2']
 
-                            st.markdown("<br><b>📊 Comparativo de Trajetos (Disponíveis pelo servidor):</b>",
-                                        unsafe_allow_html=True)
-                            cols_metricas = st.columns(min(3, len(rotas_retornadas)))
+                        st.markdown("<br><b>📊 Comparativo de Trajetos (Disponíveis pelo servidor):</b>",
+                                    unsafe_allow_html=True)
+                        cols_metricas = st.columns(min(3, len(rotas_retornadas)))
 
-                            for idx_r, rota in enumerate(rotas_retornadas[:3]):
-                                dist_km = rota['distance'] / 1000.0
-                                dur_min = rota['duration'] / 60.0
+                        for idx_r, rota in enumerate(rotas_retornadas[:3]):
+                            dist_km = rota['distance'] / 1000.0
+                            dur_min = rota['duration'] / 60.0
 
-                                if dur_min >= 60:
-                                    texto_tempo = f"{int(dur_min // 60)}h {int(dur_min % 60)}min"
-                                else:
-                                    texto_tempo = f"{int(dur_min)}min"
+                            if dur_min >= 60:
+                                texto_tempo = f"{int(dur_min // 60)}h {int(dur_min % 60)}min"
+                            else:
+                                texto_tempo = f"{int(dur_min)}min"
 
-                                with cols_metricas[idx_r]:
-                                    st.markdown(
-                                        f"""
-                                        <div style="background-color: #262730; padding: 12px; border-radius: 6px; border: 1px solid #464855; border-left: 5px solid {cores_linhas[idx_r]};">
-                                            <span style="color: {cores_linhas[idx_r]}; font-weight: bold;">{labels_linhas[idx_r]}</span><br>
-                                            📏 <b>{dist_km:.2f} km</b><br>
-                                            ⏱️ <b>{texto_tempo}</b>
-                                        </div>
-                                        """,
-                                        unsafe_allow_html=True
+                            with cols_metricas[idx_r]:
+                                st.markdown(
+                                    f"""
+                                    <div style="background-color: #262730; padding: 12px; border-radius: 6px; border: 1px solid #464855; border-left: 5px solid {cores_linhas[idx_r]};">
+                                        <span style="color: {cores_linhas[idx_r]}; font-weight: bold;">{labels_linhas[idx_r]}</span><br>
+                                        📏 <b>{dist_km:.2f} km</b><br>
+                                        ⏱️ <b>{texto_tempo}</b>
+                                    </div>
+                                    """,
+                                    unsafe_allow_html=True
+                                )
+
+                            geometria_rota = rota['geometry']['coordinates']
+                            lista_coordenadas_folium = [[point[1], point[0]] for point in geometria_rota]
+
+                            espessura = 6 if idx_r == 0 else 4
+                            opacidade = 0.85 if idx_r == 0 else 0.55
+
+                            folium.PolyLine(
+                                lista_coordenadas_folium,
+                                color=cores_linhas[idx_r],
+                                weight=espessura,
+                                opacity=opacidade,
+                                tooltip=f"{labels_linhas[idx_r]} ({dist_km:.1f} km)"
+                            ).add_to(m_rota)
+
+                            if len(lista_coordenadas_folium) > 2:
+                                meio_idx = len(lista_coordenadas_folium) // 2
+                                ponto_medio = lista_coordenadas_folium[meio_idx]
+
+                                html_floating_label = f"""
+                                <div style="
+                                    background-color: #1E1E24;
+                                    color: #FFFFFF;
+                                    font-weight: bold;
+                                    font-size: 11px;
+                                    padding: 3px 8px;
+                                    border-radius: 12px;
+                                    border: 2px solid {cores_linhas[idx_r]};
+                                    box-shadow: 0px 2px 6px rgba(0,0,0,0.6);
+                                    white-space: nowrap;
+                                    text-align: center;
+                                ">
+                                    📏 {dist_km:.1f} km ({texto_tempo})
+                                </div>
+                                """
+                                folium.Marker(
+                                    location=ponto_medio,
+                                    icon=folium.DivIcon(
+                                        html=html_floating_label,
+                                        icon_size=(130, 24),
+                                        icon_anchor=(65, 12)
                                     )
-
-                                geometria_rota = rota['geometry']['coordinates']
-                                lista_coordenadas_folium = [[point[1], point[0]] for point in geometria_rota]
-
-                                espessura = 6 if idx_r == 0 else 4
-                                opacidade = 0.85 if idx_r == 0 else 0.55
-
-                                folium.PolyLine(
-                                    lista_coordenadas_folium,
-                                    color=cores_linhas[idx_r],
-                                    weight=espessura,
-                                    opacity=opacidade,
-                                    tooltip=f"{labels_linhas[idx_r]} ({dist_km:.1f} km)"
                                 ).add_to(m_rota)
 
-                    except Exception as e:
-                        st.error(f"Erro ao calcular as alternativas OSRM: {e}")
+                except Exception as e:
+                    st.error(f"Erro ao calcular as alternativas OSRM: {e}")
 
-                lats_r = [c[0] for c in dados_para_bounds]
-                lngs_r = [c[1] for c in dados_para_bounds]
-                m_rota.fit_bounds([[min(lats_r), min(lngs_r)], [max(lats_r), max(lngs_r)]], padding=(40, 40))
+            lats_r = [c[0] for c in dados_para_bounds]
+            lngs_r = [c[1] for c in dados_para_bounds]
+            m_rota.fit_bounds([[min(lats_r), min(lngs_r)], [max(lats_r), max(lngs_r)]], padding=(40, 40))
 
-                st.markdown("<br>", unsafe_allow_html=True)
-                if st.button("🗑️ Limpar Itinerário Escolhido", use_container_width=True):
-                    del st.session_state.dados_rota_ativa
-                    st.rerun()
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("🗑️ Limpar Itinerário Escolhido", use_container_width=True):
+                del st.session_state.dados_rota_ativa
+                st.rerun()
 
-            saída_mapa_rotas = st_folium(
-                m_rota,
-                width=1800,
-                height=700,
-                use_container_width=True,
-                returned_objects=["last_object_clicked"],
-                key=f"mapa_rotas_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}_active_{'dados_rota_ativa' in st.session_state}"
-            )
+        saída_mapa_rotas = st_folium(
+            m_rota,
+            width=1800,
+            height=700,
+            use_container_width=True,
+            returned_objects=["last_object_clicked"],
+            key=f"mapa_rotas_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}_active_{'dados_rota_ativa' in st.session_state}"
+        )
 
-            if saída_mapa_rotas and saída_mapa_rotas.get("last_object_clicked"):
-                lat_clicada = saída_mapa_rotas["last_object_clicked"]["lat"]
-                lng_clicada = saída_mapa_rotas["last_object_clicked"]["lng"]
-                if [lat_clicada, lng_clicada] != st.session_state.map_center or st.session_state.map_zoom != 17:
-                    st.session_state.map_center = [lat_clicada, lng_clicada]
-                    st.session_state.map_zoom = 17
-                    st.session_state.map_bounds = None
-                    st.rerun()
+        if saída_mapa_rotas and saída_mapa_rotas.get("last_object_clicked"):
+            lat_clicada = saída_mapa_rotas["last_object_clicked"]["lat"]
+            lng_clicada = saída_mapa_rotas["last_object_clicked"]["lng"]
+            if [lat_clicada, lng_clicada] != st.session_state.map_center or st.session_state.map_zoom != 17:
+                st.session_state.map_center = [lat_clicada, lng_clicada]
+                st.session_state.map_zoom = 17
+                st.session_state.map_bounds = None
+                st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
 else:
