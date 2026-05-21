@@ -24,8 +24,9 @@ def obter_config(chave, valor_padrao=True):
 
 # Lendo as permissões do arquivo secreto
 CONSEGUI_VER_LISTA = obter_config("HABILITAR_LISTA_CHAMADOS", True)
+CONSEGUI_VER_ROTAS = obter_config("HABILITAR_ABA_ROTAS", True)
 
-# 2. CSS GLOBAL (BLINDADO CONTRA ELEMENTOS DO STREAMLIT CLOUD)
+# 2. CSS GLOBAL (VISUAL LIMPO E VERSÃO CORRIGIDA NO RODAPÉ DA SIDEBAR)
 st.markdown(
     """
     <style>
@@ -62,6 +63,7 @@ st.markdown(
         /* --- SELETORES PARA OS BOTÕES NATIVOS --- */
         div[data-testid="stButton"] button,
         div[data-testid="stSidebar"] button,
+        div[data-testid="stHorizontalBlock"] button,
         .lista-chamados-container button {
             min-height: 55px !important;
             height: 55px !important;
@@ -93,26 +95,53 @@ st.markdown(
             color: #FFFFFF !important;
         }
 
-        /* --- TAG DE VERSÃO FIXA NO CANTO INFERIOR DIREITO --- */
-        .version-footer {
-            position: fixed;
-            bottom: 12px;
-            right: 15px;
-            z-index: 1000005;
-            color: #888c99;
-            font-family: monospace;
-            font-size: 12px;
-            font-weight: bold;
-            background-color: rgba(38, 39, 48, 0.85);
-            padding: 4px 10px;
-            border-radius: 5px;
-            border: 1px solid #464855;
-            pointer-events: none;
-            box-shadow: 0px 2px 8px rgba(0,0,0,0.5);
+        /* Alinhamento do bloco horizontal do botão calcular rota */
+        div[data-testid="stHorizontalBlock"] div[data-testid="element-container"] {
+            padding-top: 10px !important;
+        }
+
+        div[data-testid="stHorizontalBlock"] button {
+            background-color: #007BFF !important;
+            color: white !important;
+            border: none !important;
+            margin-top: 14px !important;
+            justify-content: center !important;
+            box-shadow: 0px 4px 12px rgba(0, 123, 255, 0.3) !important;
+        }
+
+        div[data-testid="stHorizontalBlock"] button:hover {
+            background-color: #0056b3 !important;
+            box-shadow: 0px 6px 16px rgba(0, 123, 255, 0.5) !important;
+        }
+
+        /* --- AJUSTE DA SIDEBAR PARA PERMITIR ANCORAGEM NO RODAPÉ --- */
+        section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
+            position: relative !important;
+            min-height: calc(100vh - 20px) !important; /* Força container a ocupar altura da tela */
+            display: flex !important;
+            flex-direction: column !important;
+        }
+
+        /* --- ESTILO DA VERSÃO NO CANTO INFERIOR DIREITO DA SIDEBAR --- */
+        .version-tag-sidebar {
+            position: absolute !important;
+            bottom: 10px !important;
+            right: auto !important;
+            left: auto !important;
+            top: auto !important;
+            z-index: 1000 !important;
+            color: #888c99 !important;
+            font-family: monospace !important;
+            font-size: 12px !important;
+            font-weight: bold !important;
+            background-color: rgba(38, 39, 48, 0.95) !important;
+            padding: 4px 10px !important;
+            border-radius: 5px !important;
+            border: 1px solid #464855 !important;
+            pointer-events: none !important;
+            box-shadow: 0px 2px 8px rgba(0,0,0,0.5) !important;
         }
     </style>
-
-    <div class="version-footer">v0.2.1</div>
     """,
     unsafe_allow_html=True
 )
@@ -153,6 +182,9 @@ def mapear_coluna_flexivel(lista_colunas, alvos):
 
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
+    # Injeta o elemento da versão no DOM da sidebar
+    st.markdown('<div class="version-tag-sidebar">v0.2.1</div>', unsafe_allow_html=True)
+
     st.title("📍 My Maps BR")
     st.caption("Modo de Geocodificação Nacional (Tempo Real)")
     st.markdown("---")
@@ -361,30 +393,165 @@ if st.session_state.df_final is not None and CONSEGUI_VER_LISTA:
                         st.rerun()
             st.markdown('</div>', unsafe_allow_html=True)
 
-# --- ÁREA PRINCIPAL RENDERIZADA DIRETO (SEM ABAS) ---
+# --- ÁREA PRINCIPAL COM CONTROLE DE ABAS REMOTO ---
 if st.session_state.mapa_pronto:
     st.markdown('<div class="map-container">', unsafe_allow_html=True)
 
-    saída_mapa_geral = st_folium(
-        st.session_state.mapa_pronto,
-        width=1800,
-        height=850,
-        use_container_width=True,
-        returned_objects=["last_object_clicked"],
-        center=st.session_state.map_center,
-        zoom=st.session_state.map_zoom,
-        key=f"mapa_geral_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}_bnd_{len(st.session_state.coords_sessao)}"
-    )
+    lista_abas_nome = ["🗺️ Visão Geral"]
+    if CONSEGUI_VER_ROTAS:
+        lista_abas_nome.append("🚗 Traçar Rotas")
 
-    if saída_mapa_geral and saída_mapa_geral.get("last_object_clicked"):
-        lat_clicada = saída_mapa_geral["last_object_clicked"]["lat"]
-        lng_clicada = saída_mapa_geral["last_object_clicked"]["lng"]
-        nova_posicao = [lat_clicada, lng_clicada]
-        if nova_posicao != st.session_state.map_center or st.session_state.map_zoom != 17:
-            st.session_state.map_center = nova_posicao
-            st.session_state.map_zoom = 17
-            st.session_state.map_bounds = None
-            st.rerun()
+    abas_renderizadas = st.tabs(lista_abas_nome)
+
+    with abas_renderizadas[0]:
+        saída_mapa_geral = st_folium(
+            st.session_state.mapa_pronto,
+            width=1800,
+            height=850,
+            use_container_width=True,
+            returned_objects=["last_object_clicked"],
+            center=st.session_state.map_center,
+            zoom=st.session_state.map_zoom,
+            key=f"mapa_geral_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}_bnd_{len(st.session_state.coords_sessao)}"
+        )
+
+        if saída_mapa_geral and saída_mapa_geral.get("last_object_clicked"):
+            lat_clicada = saída_mapa_geral["last_object_clicked"]["lat"]
+            lng_clicada = saída_mapa_geral["last_object_clicked"]["lng"]
+            nova_posicao = [lat_clicada, lng_clicada]
+            if nova_posicao != st.session_state.map_center or st.session_state.map_zoom != 17:
+                st.session_state.map_center = nova_posicao
+                st.session_state.map_zoom = 17
+                st.session_state.map_bounds = None
+                st.rerun()
+
+    if CONSEGUI_VER_ROTAS:
+        with abas_renderizadas[1]:
+            df_rotas = st.session_state.df_final
+            df_rotas['Cidade_UF'] = df_rotas['Cidade'] + " - " + df_rotas['SiglaUF']
+            lista_cidades_br = sorted(df_rotas['Cidade_UF'].unique().tolist())
+
+            col1, col2, col3 = st.columns([2, 2, 1.2])
+            with col1:
+                origem = st.selectbox("📍 Cidade de Origem", lista_cidades_br, key="origem_rota")
+            with col2:
+                def_idx = min(1, len(lista_cidades_br) - 1)
+                destino = st.selectbox("🏁 Cidade de Destino", lista_cidades_br, index=def_idx, key="destino_rota")
+            with col3:
+                calcular = st.button("🚀 Calcular Rota", use_container_width=True)
+
+            m_rota = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
+            for child in st.session_state.mapa_pronto._children.values():
+                if isinstance(child, folium.Marker):
+                    child.add_to(m_rota)
+
+            if calcular:
+                lin_origem = df_rotas[df_rotas['Cidade_UF'] == origem].iloc[0]
+                lin_destino = df_rotas[df_rotas['Cidade_UF'] == destino].iloc[0]
+
+                key_origem = f"{str(lin_origem['Endereco']).strip()}, {str(lin_origem['Cidade']).strip()} - {str(lin_origem['SiglaUF']).strip()}, Brasil".upper().strip()
+                key_destino = f"{str(lin_destino['Endereco']).strip()}, {str(lin_destino['Cidade']).strip()} - {str(lin_destino['SiglaUF']).strip()}, Brasil".upper().strip()
+
+                if key_origem in st.session_state.coords_sessao and key_destino in st.session_state.coords_sessao:
+                    ponto_A = st.session_state.coords_sessao[key_origem]
+                    ponto_B = st.session_state.coords_sessao[key_destino]
+
+                    st.write("### 🔄 Rota Dinâmica Ativada")
+                    st.info(
+                        "💡 **Como usar:** Passe o mouse sobre a rota para ver o ponto de controle. Clique e arraste qualquer parte da linha azul para mudar o caminho, igual no Google Maps!")
+
+                    # 1. Injeta os estilos e scripts essenciais do Leaflet Routing Machine no cabeçalho do mapa
+                    m_rota.get_root().header.add_child(
+                        folium.Element(
+                            '<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />')
+                    )
+                    m_rota.get_root().header.add_child(
+                        folium.Element(
+                            '<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>')
+                    )
+
+                    # 2. JavaScript com chaves duplicadas para escapar f-string e permitir o arrastar dinâmico
+                    script_rota_arrastavel = f"""
+                    <script>
+                    (function() {{
+                        function inicializarRota() {{
+                            var mapInstance = null;
+
+                            if (typeof L !== 'undefined' && L.Map && L.Map._maps) {{
+                                var mapas_ativos = Object.values(L.Map._maps);
+                                if (mapas_ativos.length > 0) {{
+                                    mapInstance = mapas_ativos[0];
+                                }}
+                            }}
+
+                            if (!mapInstance && typeof L !== 'undefined') {{
+                                var layers = L.Map.prototype._layers;
+                                for (var id in layers) {{
+                                    if (layers[id]._container && layers[id]._container.id) {{
+                                        mapInstance = layers[id];
+                                        break;
+                                    }}
+                                }}
+                            }}
+
+                            if (mapInstance) {{
+                                console.log("Mapa localizado com sucesso. Injetando a rota...");
+                                L.Routing.control({{
+                                    waypoints: [
+                                        L.latLng({ponto_A[0]}, {ponto_A[1]}),
+                                        L.latLng({ponto_B[0]}, {ponto_B[1]})
+                                    ],
+                                    routeWhileDragging: true,
+                                    showAlternatives: true,
+                                    altLineOptions: {{
+                                        styles: [
+                                            {{color: '#9400D3', opacity: 0.6, weight: 4}}
+                                        ]
+                                    }},
+                                    lineOptions: {{
+                                        styles: [{{color: '#007BFF', opacity: 0.85, weight: 6}}]
+                                    }},
+                                    createMarker: function(i, wp, nWps) {{
+                                        var label = i === 0 ? "Início" : (i === nWps - 1 ? "Fim" : "Ponto de Desvio");
+                                        return L.marker(wp.latLng, {{
+                                            draggable: true
+                                        }}).bindPopup(label);
+                                    }}
+                                }}).addTo(mapInstance);
+                            }} else {{
+                                console.log("Aguardando mapa renderizar...");
+                                setTimeout(inicializarRota, 300);
+                            }}
+                        }}
+
+                        setTimeout(inicializarRota, 600);
+                    }})();
+                    </script>
+                    """
+
+                    m_rota.get_root().html.add_child(folium.Element(script_rota_arrastavel))
+                    m_rota.fit_bounds([ponto_A, ponto_B])
+
+                else:
+                    st.error("Coordenadas não encontradas no mapa atual.")
+
+            saída_mapa_rotas = st_folium(
+                m_rota,
+                width=1800,
+                height=700,
+                use_container_width=True,
+                returned_objects=["last_object_clicked"],
+                key=f"mapa_rotas_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}"
+            )
+
+            if saída_mapa_rotas and saída_mapa_rotas.get("last_object_clicked"):
+                lat_clicada = saída_mapa_rotas["last_object_clicked"]["lat"]
+                lng_clicada = saída_mapa_rotas["last_object_clicked"]["lng"]
+                if [lat_clicada, lng_clicada] != st.session_state.map_center or st.session_state.map_zoom != 17:
+                    st.session_state.map_center = [lat_clicada, lng_clicada]
+                    st.session_state.map_zoom = 17
+                    st.session_state.map_bounds = None
+                    st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
 else:
