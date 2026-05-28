@@ -6,8 +6,102 @@ from geopy.geocoders import Photon
 import ssl
 import certifi
 
+# --- CACHE DE GEOCODIFICAÇÕES ---
+import os
+import json
+from pathlib import Path
+
+CACHE_FILE = Path.home() / ".streamlit" / "geocodificacao_cache.json"
+
+
+def carregar_cache_geocodificacao():
+    """Carrega o cache de coordenadas do arquivo JSON."""
+    if CACHE_FILE.exists():
+        try:
+            with open(CACHE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except (json.JSONDecodeError, IOError):
+            return {}
+    return {}
+
+
+def salvar_cache_geocodificacao(cache):
+    """Salva o cache atualizado no arquivo JSON."""
+    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    try:
+        with open(CACHE_FILE, "w", encoding="utf-8") as f:
+            json.dump(cache, f, ensure_ascii=False, indent=2)
+    except IOError as e:
+        print(f"[CACHE WARNING] Não foi possível salvar cache: {e}")
+
+
+def obter_coordenadas_com_cache(endereco_completo, chave_busca, cliente, cidade, uf):
+    """
+    Busca coordenadas: primeiro no cache, depois na API.
+    Atualiza o cache se encontrado na API.
+
+    Args:
+        endereco_completo: endereço formatado para busca (ex: "Rua X, Cidade - UF, Brasil")
+        chave_busca: chave em caixa alta (ex: "RUA X, CIDADE - UF, BRASIL")
+        cliente: nome do cliente
+        cidade: nome da cidade
+        uf: sigla do estado
+
+    Returns:
+        tuple: (lat, lng) ou (None, None) se não encontrado
+    """
+    cache = carregar_cache_geocodificacao()
+
+    # Buscar no cache
+    if chave_busca in cache:
+        entrada = cache[chave_busca]
+        return (entrada["lat"], entrada["lng"])
+
+    # Se não estiver no cache, retorna None para buscar na API depois
+    return None, None
+
+
+def adicionar_ao_cache(chave_busca, cliente, cidade, uf, lat, lng):
+    """Adiciona uma entrada ao cache de geocodificações."""
+    cache = carregar_cache_geocodificacao()
+    cache[chave_busca] = {
+        "cliente": cliente.upper(),
+        "cidade": cidade.upper(),
+        "estado": uf.upper(),
+        "lat": lat,
+        "lng": lng
+    }
+    salvar_cache_geocodificacao(cache)
+
+
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="My Maps BR", layout="wide")
+
+# DICIONÁRIO GLOBAL DE CORES POR TIPO DE INTERVENÇÃO
+CORES_INTERVENCAO = {
+    "Alteração de engenharia": "#4B0082",  # Indigo
+    "Autorização de deslocamento": "#4682B4",  # SteelBlue
+    "Cofre": "#708090",  # SlateGray
+    "Corretiva": "#FF4B4B",  # Vermelho
+    "Corretiva POS reincidentes": "#B22222",  # FireBrick
+    "Desinstalação": "#FF8C00",  # DarkOrange
+    "Helpdesk": "#008B8B",  # DarkCyan
+    "Inspeção técnica": "#9ACD32",  # YellowGreen
+    "Instalação": "#2E8B57",  # SeaGreen
+    "Laudo técnico": "#8B008B",  # DarkMagenta
+    "Manutenção gerencial": "#5F9EA0",  # CadetBlue
+    "Orçamento": "#FFD700",  # Gold
+    "Orçamento aprovado": "#32CD32",  # LimeGreen
+    "Orçamento pendente da filial detalhar motivo": "#FFA500",  # Orange
+    "Orçamento pendente de aprovação do cliente": "#DAA520",  # GoldenRod
+    "Orçamento reprovado": "#8B0000",  # DarkRed
+    "Preventiva": "#007BFF",  # Azul
+    "Preventiva gerencial": "#1E90FF",  # DodgerBlue
+    "Reinstalação": "#20B2AA",  # LightSeaGreen
+    "Treinamento": "#9370DB",  # MediumPurple
+    "Troca de Veloh C": "#8B4513",  # SaddleBrown
+    "Não Informado": "#464855"  # Cinza
+}
 
 
 # --- FUNÇÃO AUXILIAR DE CONFIGURAÇÃO SEGURA ---
@@ -26,12 +120,26 @@ CONSEGUI_VER_ROTAS = obter_config("HABILITAR_ABA_ROTAS", True)
 st.markdown(
     """
     <style>
-        .block-container { padding: 2rem !important; max-width: 100% !important; }
+        .block-container { padding-top: 1rem !important; padding-left: 0rem !important; padding-right: 0rem 
+        !important; padding-bottom: 0rem !important; max-width: 100% !important; }
+
+        /* --- CONTROLE DO CABEÇALHO SUPERIOR --- */
+        button[data-testid="stHeaderShareButton"],
+        a[data-testid="stHeaderGithubLink"],
+        button[data-testid="stHeaderStarButton"] {
+            display: none !important;
+            visibility: hidden !important;
+        }
+
+        ul[data-testid="main-menu-list"] li:not(:nth-child(3)):not(:nth-child(4)) {
+            display: none !important;
+            visibility: hidden !important;
+        }
 
         .map-container { margin-left: 20px !important; margin-right: 20px !important; }
 
         .lista-chamados-container {
-            max-height: 400px;
+            max-height: 4000px;
             overflow-y: auto;
             background-color: #262730;
             padding: 10px;
@@ -42,10 +150,11 @@ st.markdown(
         /* --- SELETORES GERAIS PARA BOTÕES DE FLUXO/FORMULÁRIO --- */
         div[data-testid="stButton"] button,
         div[data-testid="stSidebar"] button[disabled="false"],
-        div[data-testid="stHorizontalBlock"] button {
+        div[data-testid="stHorizontalBlock"] button,
+        .lista-chamados-container button {
             min-height: 55px !important;
             height: 55px !important;
-            line-height: 55px !important;
+            line-height: 35px !important;
             font-size: 15px !important;
             font-weight: bold !important;
             display: inline-flex !important;
@@ -56,7 +165,7 @@ st.markdown(
             padding: 10px 15px !important;
         }
 
-        /* BOTOÕES DA LISTA DE CHAMADOS SE AJUSTAREM AO TEXTO */
+        /* BOTÕES DA LISTA DE CHAMADOS SE AJUSTAREM AO TEXTO */
         .lista-chamados-container button {
             min-height: 45px !important;
             height: auto !important;
@@ -66,21 +175,12 @@ st.markdown(
             display: block !important;
             text-align: left !important;
             font-family: monospace !important;
-            background-color: #1E1E24 !important;
-            border: 1px solid #3e404f !important;
-            color: #E0E0E0 !important;
             margin-bottom: 8px !important;
             width: 100% !important;
             box-sizing: border-box !important;
             padding: 12px 14px !important;
             white-space: normal !important;
             word-wrap: break-word !important;
-        }
-
-        .lista-chamados-container button:hover {
-            border-color: #007BFF !important;
-            background-color: #2d2f3a !important;
-            color: #FFFFFF !important;
         }
 
         /* Alinhamento do bloco horizontal do botão calcular rota e formulários */
@@ -103,30 +203,35 @@ st.markdown(
             box-shadow: 0px 6px 16px rgba(0, 123, 255, 0.5) !important;
         }
 
-        /* --- FIXAÇÃO DA LARGURA E ALTURA DE 30PX NA ABA SUPERIOR DE NAVEGAÇÃO --- */
+        /* --- ABAS DE NAVEGAÇÃO SUPERIOR --- */
         div[data-testid="stTabs"] {
             background-color: #1E1E24 !important;
-            padding: 4px !important;
+            padding: 6px 8px !important;
             border-radius: 8px !important;
             border: 1px solid #3e404f !important;
             margin-bottom: 20px !important;
             margin-left: 20px !important;
             margin-right: 20px !important;
+            margin-top: 10px !important;
+            overflow: visible !important;
         }
 
         div[data-testid="stTabs"] div[role="tablist"] {
             border-bottom: none !important;
             gap: 6px !important;
-            height: 30px !important;
-            min-height: 30px !important;
+            min-height: 36px !important;
+            height: auto !important;
             display: flex !important;
             align-items: center !important;
+            flex-wrap: nowrap !important;
+            overflow: visible !important;
         }
 
         div[data-testid="stTabs"] div[role="tablist"] button[data-baseweb="tab"] {
-            min-height: 30px !important;
-            height: 30px !important;
+            min-height: 36px !important;
+            height: 36px !important;
             width: auto !important;
+            min-width: 100px !important;
             background-color: transparent !important;
             border: none !important;
             color: #E0E0E0 !important;
@@ -139,6 +244,8 @@ st.markdown(
             justify-content: center !important;
             line-height: normal !important;
             margin: 0 !important;
+            overflow: visible !important;
+            white-space: nowrap !important;
         }
 
         /* Aba Ativa (Selecionada) */
@@ -154,16 +261,18 @@ st.markdown(
             background-color: rgba(255, 255, 255, 0.05) !important;
         }
 
-        /* Limpa distorções em blocos de texto internos do Streamlit */
-        div[data-testid="stTabs"] button[data-baseweb="tab"] div {
+        div[data-testid="stTabs"] button[data-baseweb="tab"] div,
+        div[data-testid="stTabs"] button[data-baseweb="tab"] p,
+        div[data-testid="stTabs"] button[data-baseweb="tab"] span {
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
             line-height: normal !important;
             height: auto !important;
+            overflow: visible !important;
+            white-space: nowrap !important;
         }
 
-        /* Oculta as linhas de realce nativas */
         div[data-testid="stTabs"] [data-baseweb="tab-border"],
         div[data-testid="stTabs"] [class*="StyledTabBorder"],
         div[data-testid="stTabs"] [class*="StyledTabHighlight"] {
@@ -202,6 +311,36 @@ st.markdown(
             border: none !important;
             padding: 0rem !important;
         }
+
+        /* --- ESTILO DA LEGENDA DE CORES --- */
+        .legenda-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            background-color: #1E1E24;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #3e404f;
+            margin-top: 15px;
+        }
+
+        .legenda-item {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 12px;
+            font-weight: 500;
+            color: #E0E0E0;
+            font-family: sans-serif;
+        }
+
+        .legenda-cor {
+            width: 14px;
+            height: 14px;
+            border-radius: 50%;
+            border: 1px solid #1E1E1E;
+            flex-shrink: 0;
+        }
     </style>
     """,
     unsafe_allow_html=True
@@ -212,7 +351,6 @@ if 'df_final' not in st.session_state: st.session_state.df_final = None
 if 'chamado_selecionado' not in st.session_state: st.session_state.chamado_selecionado = None
 if 'map_center' not in st.session_state: st.session_state.map_center = [-14.2350, -51.9253]
 if 'map_zoom' not in st.session_state: st.session_state.map_zoom = 4
-if 'map_bounds' not in st.session_state: st.session_state.map_bounds = None
 if 'ultimo_arquivo' not in st.session_state: st.session_state.ultimo_arquivo = None
 if 'expander_aberto' not in st.session_state: st.session_state.expander_aberto = False
 if 'coords_sessao' not in st.session_state: st.session_state.coords_sessao = {}
@@ -235,9 +373,67 @@ def mapear_coluna_flexivel(lista_colunas, alvos):
     return None
 
 
+# --- FUNÇÃO PARA GERAR O BLOCO HTML DA LEGENDA DINAMICAMENTE COM FILTROS ---
+def renderizar_legenda_dinamica_html(df_filtrado):
+    if df_filtrado is None or df_filtrado.empty:
+        return ""
+
+    intervencoes_ativas = set(df_filtrado["Intervencao"].dropna().astype(str).unique().tolist())
+
+    itens = []
+    for nome_tipo, cor_hex in CORES_INTERVENCAO.items():
+        if nome_tipo in intervencoes_ativas and nome_tipo != "Não Informado":
+            itens.append(
+                f'<div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
+                f'font-weight:500;color:#E0E0E0;font-family:sans-serif;">'
+                f'<div style="width:14px;height:14px;border-radius:50%;border:1px solid #1E1E1E;'
+                f'flex-shrink:0;background-color:{cor_hex};box-shadow:0px 0px 4px {cor_hex};"></div>'
+                f'<span>{nome_tipo}</span>'
+                f'</div>'
+            )
+
+    if not itens:
+        return ""
+
+    container = (
+            '<div style="display:flex;flex-wrap:wrap;gap:12px;background-color:#1E1E24;'
+            'padding:15px;border-radius:8px;border:1px solid #3e404f;margin-top:15px;">'
+            + "".join(itens)
+            + "</div>"
+    )
+    return container
+
+
+# --- FUNÇÃO PARA DEFINIR A COR PRIORITÁRIA DE UM AGRUPAMENTO ---
+def obter_cor_prioritaria(lista_intervencoes):
+    interv_set = {str(i).strip() for i in lista_intervencoes}
+
+    if "Corretiva" in interv_set: return CORES_INTERVENCAO["Corretiva"]
+    if "Corretiva POS reincidentes" in interv_set: return CORES_INTERVENCAO["Corretiva POS reincidentes"]
+
+    if "Preventiva" in interv_set: return CORES_INTERVENCAO["Preventiva"]
+    if "Preventiva gerencial" in interv_set: return CORES_INTERVENCAO["Preventiva gerencial"]
+
+    PRIORITY_ORCAMENTO = [
+        "Orçamento aprovado",
+        "Orçamento pendente de aprovação do cliente",
+        "Orçamento pendente da filial detalhar motivo",
+        "Orçamento reprovado",
+        "Orçamento",
+    ]
+    for key in PRIORITY_ORCAMENTO:
+        if key in interv_set:
+            return CORES_INTERVENCAO.get(key, "#FFD700")
+
+    if "Instalação" in interv_set: return CORES_INTERVENCAO["Instalação"]
+    if "Reinstalação" in interv_set: return CORES_INTERVENCAO["Reinstalação"]
+
+    return CORES_INTERVENCAO.get(list(interv_set)[0], "#FF4B4B")
+
+
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
-    st.markdown('<div class="version-tag-sidebar">v0.3.8</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-tag-sidebar">v0.3.9</div>', unsafe_allow_html=True)
 
     st.title("📍 My Maps BR")
     st.caption("Modo de Geocodificação Nacional (Tempo Real)")
@@ -245,9 +441,8 @@ with st.sidebar:
 
     arquivo = st.file_uploader("Upload da Planilha Excel", type=["xlsx"])
 
-    # 🆕 --- LÓGICA DE DETECÇÃO DO "X" (REMOVER ARQUIVO) OU NOVO ARQUIVO ---
+    # Lógica de detecção do "X" (Remover arquivo) ou Novo arquivo
     if arquivo is None and st.session_state.ultimo_arquivo is not None:
-        # Usuário clicou no "X" para deletar o arquivo: Limpa completamente a memória do app
         st.session_state.df_final = None
         st.session_state.chamado_selecionado = None
         st.session_state.dados_agrupados_marcador = []
@@ -261,9 +456,9 @@ with st.sidebar:
     if arquivo:
         is_novo_arquivo = (st.session_state.ultimo_arquivo != arquivo.name)
 
-        # Se um arquivo totalmente novo foi jogado por cima, limpa caches antigos para evitar misturar dados
         if is_novo_arquivo:
             st.session_state.dados_agrupados_marcador = []
+            st.session_state.coords_sessao = {}
             st.session_state.chamado_selecionado = None
             st.session_state.f_interv, st.session_state.f_clie, st.session_state.f_regi = "Todos", "Todos", "Todos"
 
@@ -307,20 +502,28 @@ with st.sidebar:
                     idx_regi = op_regi.index(st.session_state.f_regi) if st.session_state.f_regi in op_regi else 0
                     regiao_sel = st.selectbox("Filtrar por Região:", op_regi, index=idx_regi)
 
-                    submeteu = st.form_submit_button("⚡ Aplicar Filtros", use_container_width=True)
+                    col_aplicar, col_limpar = st.columns(2)
+                    with col_aplicar:
+                        submeteu = st.form_submit_button("⚡ Aplicar Filtros", use_container_width=True)
+                    with col_limpar:
+                        limpar = st.form_submit_button("🧹 Limpar Filtros", use_container_width=True)
                     if submeteu:
                         st.session_state.f_interv = intervencao_sel
                         st.session_state.f_clie = cliente_sel
                         st.session_state.f_regi = regiao_sel
                         st.rerun()
+                    if limpar:
+                        st.session_state.f_interv = "Todos"
+                        st.session_state.f_clie = "Todos"
+                        st.session_state.f_regi = "Todos"
+                        st.rerun()
             else:
                 st.selectbox("Filtrar por Intervenção:", ["Nenhuma planilha carregada"], disabled=True, key="ds1")
                 st.selectbox("Filtrar por Cliente:", ["Nenhuma planilha carregada"], disabled=True, key="ds2")
                 st.selectbox("Filtrar por Região:", ["Nenhuma planilha carregada"], disabled=True, key="ds3")
-                st.caption("💡 Carregue uma planilha e clique em gerar mapa para liberar os filtros.")
+                st.caption("💡 Carregue uma planilha para liberar os filtros.")
 
-        if is_novo_arquivo or st.session_state.df_final is None or st.sidebar.button("⚡ Gerar / Atualizar Mapa",
-                                                                                     key="btn_gerar"):
+        if is_novo_arquivo or st.session_state.df_final is None:
             df_aba = pd.read_excel(arquivo, sheet_name=aba_selecionada)
 
             col_os = mapear_coluna_flexivel(df_aba.columns.tolist(), ["CodOS", "Chamado", "ID", "Ticket"])
@@ -371,7 +574,6 @@ with st.sidebar:
 
                 st.session_state.map_center = [-14.2350, -51.9253]
                 st.session_state.map_zoom = 4
-                st.session_state.map_bounds = None
                 st.rerun()
             else:
                 st.error("❌ Não foi possível encontrar todas as colunas obrigatórias nesta aba.")
@@ -389,8 +591,16 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
 
     pontos_para_buscar = []
     EXCECOES_CIDADES = {
-        "ZORTEA": [-27.4514, -51.5542], "CHAPECO": [-27.1004, -52.6152], "CHAPECÓ": [-27.1004, -52.6152],
-        "NAVEGANTES": [-26.8914, -48.6548], "SAO JOSE": [-27.6146, -48.6353], "SÃO JOSÉ": [-27.6146, -48.6353]
+        ("ZORTEA", "SC"): [-27.4514, -51.5542],
+        ("CHAPECO", "SC"): [-27.1004, -52.6152],
+        ("CHAPECÓ", "SC"): [-27.1004, -52.6152],
+        ("NAVEGANTES", "SC"): [-26.8914, -48.6548],
+        ("SAO JOSE", "SC"): [-27.6146, -48.6353],
+        ("SÃO JOSÉ", "SC"): [-27.6146, -48.6353],
+        ("CAMPO GRANDE", "MS"): [-20.4697, -54.6201],
+        ("CAMPO GRANDO", "MS"): [-20.4697, -54.6201],  # typo comum na planilha
+        ("PARANAIBA", "MS"): [-19.7942, -51.1809],
+        ("PARANAÍBA", "MS"): [-19.7942, -51.1809],
     }
 
     for row in grupo_pontos.itertuples(index=False):
@@ -403,11 +613,28 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
         chave_busca = endereco_completo_busca.upper().strip()
         cid_upper = cid_limpa.upper().strip()
 
-        if cid_upper in EXCECOES_CIDADES and uf_limpa.upper().strip() == "SC":
-            st.session_state.coords_sessao[chave_busca] = EXCECOES_CIDADES[cid_upper]
+        pos = None
 
-        if chave_busca in st.session_state.coords_sessao:
+        # 1. Verificar EXCEÇÕES (cidades com problemas conhecidos)
+        chave_excecao = (cid_upper, uf_limpa.upper().strip())
+        if chave_excecao in EXCECOES_CIDADES:
+            pos = EXCECOES_CIDADES[chave_excecao]
+            st.session_state.coords_sessao[chave_busca] = pos
+            adicionar_ao_cache(chave_busca, cli_limpa, cid_limpa, uf_limpa, pos[0], pos[1])
+
+        # 2. Verificar CACHE se não foi encontrado em exceções
+        if pos is None:
+            lat_cache, lng_cache = obter_coordenadas_com_cache(endereco_completo_busca, chave_busca, cli_limpa,
+                                                               cid_limpa, uf_limpa)
+            if lat_cache is not None and lng_cache is not None:
+                pos = [lat_cache, lng_cache]
+                st.session_state.coords_sessao[chave_busca] = pos
+
+        # 3. Verificar coords_sessao (de runs anteriores)
+        if pos is None and chave_busca in st.session_state.coords_sessao:
             pos = st.session_state.coords_sessao[chave_busca]
+
+        if pos is not None:
             st.session_state.dados_agrupados_marcador.append({
                 "pos": pos, "qtd": int(row.qtd), "cid": cid_limpa, "uf": uf_limpa, "rua": rua_limpa,
                 "interv": interv_limpa, "cli": cli_limpa, "reg": reg_limpa, "os": os_limpa, "sla": sla_limpa
@@ -432,11 +659,14 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
                 else:
                     loc_fallback = geolocator.geocode(f"{rua.split(',')[0]}, {cid} - {uf_val}, Brasil", timeout=2)
                     if loc_fallback: pos = [loc_fallback.latitude, loc_fallback.longitude]
-            except:
+            except Exception as e:
+                print(f"[GEOCODE ERROR] {endereco_completo_busca}: {e}")
                 pos = None
 
             if pos:
                 st.session_state.coords_sessao[chave_busca] = pos
+                # Salvar no cache para próximas execuções
+                adicionar_ao_cache(chave_busca, cli_limpa, cid, uf_val, pos[0], pos[1])
                 st.session_state.dados_agrupados_marcador.append({
                     "pos": pos, "qtd": int(row.qtd), "cid": cid, "uf": uf_val, "rua": rua,
                     "interv": interv_limpa, "cli": cli_limpa, "reg": reg_limpa, "os": os_limpa, "sla": sla_limpa
@@ -472,6 +702,53 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
         st.rerun()
 
 
+# --- FUNÇÃO COMPARTILHADA: ADICIONA MARCADORES AO MAPA ---
+def adicionar_marcadores_ao_mapa(m, df_agrupamento):
+    """Adiciona marcadores em um folium.Map a partir de um DataFrame filtrado."""
+    if df_agrupamento.empty:
+        return
+    df = df_agrupamento.copy()
+    df['lat'] = df['pos'].apply(lambda x: x[0])
+    df['lng'] = df['pos'].apply(lambda x: x[1])
+
+    for (lat, lng), group_local in df.groupby(['lat', 'lng']):
+        total_chamados = len(group_local)
+        primeiro = group_local.iloc[0]
+        intervencoes = group_local['interv'].tolist()
+        cor = obter_cor_prioritaria(intervencoes)
+
+        texto = f"""
+        <div style='font-family: Arial, sans-serif; min-width: 240px;'>
+            <span style='font-size: 14px; font-weight: bold; color: #FF4B4B;'>📍 {primeiro['cid']} - {primeiro['uf']}</span><br>
+            <small style='color: #666;'>{primeiro['rua']}</small><br>
+            <hr style='margin: 8px 0; border: 0; border-top: 1px solid #ddd;'>
+        """
+        for chamado in group_local.itertuples():
+            texto += f"<b>Intervenção:</b> {chamado.interv}<br>"
+            texto += f"<b>Cliente:</b> {chamado.cli}<br><b>Nº Chamado:</b> {chamado.os}<br>"
+            sla_val = str(chamado.sla).strip()
+            if sla_val and sla_val.upper() not in ("S/N", "NAN"):
+                texto += f"<b>SLA:</b> {sla_val}<br>"
+            if len(group_local) > 1:
+                texto += "<hr style='margin: 6px 0; border: 0; border-top: 1px dashed #eee;'>"
+        texto += f"<span style='font-size: 11px; font-weight: bold; color: #333;'>Total de chamados: {total_chamados}</span></div>"
+
+        raio = min(9 + (total_chamados * 0.2), 28)
+        diam = int(raio * 2)
+        fonte = max(8, min(12, int(raio * 0.65)))
+        html_icone = (
+            f'<div style="background-color: {cor}; color: white; border: 1px solid #1E1E1E; '
+            f'border-radius: 50%; width: {diam}px; height: {diam}px; display: flex; '
+            f'align-items: center; justify-content: center; font-size: {fonte}px; '
+            f'font-weight: bold; box-shadow: 0px 0px 8px {cor};">{total_chamados}</div>'
+        )
+        folium.Marker(
+            location=[lat, lng],
+            icon=folium.DivIcon(html=html_icone, icon_size=(diam, diam), icon_anchor=(raio, raio)),
+            tooltip=texto, popup=texto
+        ).add_to(m)
+
+
 # --- CONSTRUTOR DINÂMICO DO MAPA ---
 def construir_mapa_geral():
     m = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
@@ -482,42 +759,7 @@ def construir_mapa_geral():
         if st.session_state.f_regi != "Todos" and p["reg"] != st.session_state.f_regi: continue
         dados_filtrados.append(p)
 
-    df_agrupamento_mapa = pd.DataFrame(dados_filtrados)
-    if not df_agrupamento_mapa.empty:
-        df_agrupamento_mapa['lat'] = df_agrupamento_mapa['pos'].apply(lambda x: x[0])
-        df_agrupamento_mapa['lng'] = df_agrupamento_mapa['pos'].apply(lambda x: x[1])
-
-        for (lat, lng), grupo_local in df_agrupamento_mapa.groupby(['lat', 'lng']):
-            total_chamados = grupo_local['qtd'].sum()
-            primeiro = grupo_local.iloc[0]
-
-            texto_exibicao = f"""
-            <div style='font-family: Arial, sans-serif; min-width: 240px;'>
-                <span style='font-size: 14px; font-weight: bold; color: #FF4B4B;'>📍 {primeiro['cid']} - {primeiro['uf']}</span><br>
-                <small style='color: #666;'>{primeiro['rua']}</small><br>
-                <hr style='margin: 8px 0; border: 0; border-top: 1px solid #ddd;'>
-            """
-            for chamado in grupo_local.itertuples():
-                texto_exibicao += f"<b>Cliente:</b> {chamado.cli}<br><b>Nº Chamado:</b> {chamado.os}<br>"
-                sla_val = str(chamado.sla).strip()
-                if sla_val and sla_val.upper() != "S/N" and sla_val.upper() != "NAN":
-                    texto_exibicao += f"<b>SLA:</b> {sla_val}<br>"
-                texto_exibicao += "<hr style='margin: 6px 0; border: 0; border-top: 1px dashed #eee;'>" if len(
-                    grupo_local) > 1 else ""
-
-            texto_exibicao += f"<span style='font-size: 11px; font-weight: bold; color: #333;'>Total de chamados: {total_chamados}</span></div>"
-            raio_marcador = min(9 + (total_chamados * 0.2), 28)
-            diametro = int(raio_marcador * 2)
-            tamanho_fonte = max(8, min(12, int(raio_marcador * 0.65)))
-
-            html_icone = f"""<div style="background-color: #FF4B4B; color: white; border: 1px solid #1E1E1E; border-radius: 50%; width: {diametro}px; height: {diametro}px; display: flex; align-items: center; justify-content: center; font-size: {tamanho_fonte}px; font-weight: bold; box-shadow: 0px 0px 8px #FF4B4B;">{total_chamados}</div>"""
-
-            folium.Marker(
-                location=[lat, lng],
-                icon=folium.DivIcon(html=html_icone, icon_size=(diametro, diametro),
-                                    icon_anchor=(raio_marcador, raio_marcador)),
-                tooltip=texto_exibicao, popup=texto_exibicao
-            ).add_to(m)
+    adicionar_marcadores_ao_mapa(m, pd.DataFrame(dados_filtrados))
     return m
 
 
@@ -548,13 +790,26 @@ if st.session_state.df_final is not None and CONSEGUI_VER_LISTA:
             if df_botoes.empty:
                 st.caption("⚠️ Nenhum chamado encontrado.")
             else:
+                # Gera um único bloco <style> consolidado (evita centenas de tags no DOM)
+                regras_css = []
+                for idx_css, row_css in enumerate(df_botoes.itertuples(index=False)):
+                    cham_css = str(row_css.CodOS)
+                    cor_css = CORES_INTERVENCAO.get(str(row_css.Intervencao), "#3e404f")
+                    regras_css.append(
+                        f'div[data-testid="stSidebar"] div[data-testid="stButton"]:nth-of-type({idx_css + 1}) button'
+                        f' {{ border-left: 6px solid {cor_css} !important; }}'
+                    )
+                if regras_css:
+                    st.markdown(f"<style>{''.join(regras_css)}</style>", unsafe_allow_html=True)
+
                 for idx, row in enumerate(df_botoes.itertuples(index=False)):
-                    cham, cid, uf_val, rua_completa = str(row.CodOS), str(row.Cidade), str(row.SiglaUF), str(
-                        row.Endereco)
+                    cham, cid, uf_val, rua_completa, interv = str(row.CodOS), str(row.Cidade), str(row.SiglaUF), str(
+                        row.Endereco), str(row.Intervencao)
                     is_sel = (str(st.session_state.chamado_selecionado) == cham)
                     prefixo = "🔷" if is_sel else "🔵"
+                    label_botao = f"{prefixo} [{cid}-{uf_val}] OS: {cham}"
 
-                    if st.button(f"{prefixo} [{cid}-{uf_val}] OS: {cham}", key=f"btn_os_{cham}_{idx}"):
+                    if st.button(label_botao, key=f"btn_os_{cham}_{idx}"):
                         st.session_state.chamado_selecionado = cham
                         st.session_state.expander_aberto = True
                         busca_end = f"{rua_completa.strip()}, {cid.strip()} - {uf_val.strip()}, Brasil".upper().strip()
@@ -574,6 +829,14 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
 
     abas_renderizations = st.tabs(lista_abas_nome)
 
+    df_atual_filtrado = st.session_state.df_final.copy()
+    if st.session_state.f_interv != "Todos": df_atual_filtrado = df_atual_filtrado[
+        df_atual_filtrado['Intervencao'] == st.session_state.f_interv]
+    if st.session_state.f_clie != "Todos": df_atual_filtrado = df_atual_filtrado[
+        df_atual_filtrado['Cliente'] == st.session_state.f_clie]
+    if st.session_state.f_regi != "Todos": df_atual_filtrado = df_atual_filtrado[
+        df_atual_filtrado['Regiao'] == st.session_state.f_regi]
+
     with abas_renderizations[0]:
         mapa_atualizado = construir_mapa_geral()
         saída_mapa_geral = st_folium(
@@ -582,6 +845,8 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
             zoom=st.session_state.map_zoom,
             key=f"mapa_geral_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}"
         )
+
+        st.markdown(renderizar_legenda_dinamica_html(df_atual_filtrado), unsafe_allow_html=True)
 
         if saída_mapa_geral and saída_mapa_geral.get("last_object_clicked"):
             clique = saída_mapa_geral["last_object_clicked"]
@@ -602,12 +867,7 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
 
     if CONSEGUI_VER_ROTAS:
         with abas_renderizations[1]:
-            df_rotas = st.session_state.df_final.copy()
-            if st.session_state.f_interv != "Todos": df_rotas = df_rotas[
-                df_rotas['Intervencao'] == st.session_state.f_interv]
-            if st.session_state.f_clie != "Todos": df_rotas = df_rotas[df_rotas['Cliente'] == st.session_state.f_clie]
-            if st.session_state.f_regi != "Todos": df_rotas = df_rotas[df_rotas['Regiao'] == st.session_state.f_regi]
-
+            df_rotas = df_atual_filtrado.copy()
             df_rotas['Cidade_UF'] = df_rotas['Cidade'] + " - " + df_rotas['SiglaUF']
             lista_cidades_br = sorted(df_rotas['Cidade_UF'].unique().tolist())
 
@@ -616,7 +876,7 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
             else:
                 col1, col2, col3 = st.columns([2, 2, 1.2])
                 with col1:
-                    origem = st.selectbox("📍git ", lista_cidades_br, key="origem_rota")
+                    origem = st.selectbox("📍 Cidade de Origem", lista_cidades_br, key="origem_rota")
                 with col2:
                     destino = st.selectbox("🏁 Cidade de Destino", lista_cidades_br,
                                            index=min(1, len(lista_cidades_br) - 1), key="destino_rota")
@@ -633,25 +893,7 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
                     dados_filtrados_rota.append(p)
 
                 df_agrupamento_rota = pd.DataFrame(dados_filtrados_rota)
-                if not df_agrupamento_rota.empty:
-                    df_agrupamento_rota['lat'] = df_agrupamento_rota['pos'].apply(lambda x: x[0])
-                    df_agrupamento_rota['lng'] = df_agrupamento_rota['pos'].apply(lambda x: x[1])
-
-                    for (lat, lng), grupo_local in df_agrupamento_rota.groupby(['lat', 'lng']):
-                        total_chamados = grupo_local['qtd'].sum()
-                        primeiro = grupo_local.iloc[0]
-
-                        texto_exibicao = f"<b>{primeiro['cid']} - {primeiro['uf']}</b><br><small>{primeiro['rua']}</small><br>Chamados: {total_chamados}"
-                        raio_m = min(9 + (total_chamados * 0.2), 28)
-                        diam = int(raio_m * 2)
-                        tamanho_fonte = max(8, min(12, int(raio_m * 0.65)))
-                        html_i = f"""<div style="background-color: #FF4B4B; color: white; border: 1px solid #1E1E1E; border-radius: 50%; width: {diam}px; height: {diam}px; display: flex; align-items: center; justify-content: center; font-size: {tamanho_fonte}px; font-weight: bold; box-shadow: 0px 0px 8px #FF4B4B;">{total_chamados}</div>"""
-
-                        folium.Marker(
-                            location=[lat, lng],
-                            icon=folium.DivIcon(html=html_i, icon_size=(diam, diam), icon_anchor=(raio_m, raio_m)),
-                            tooltip=texto_exibicao, popup=texto_exibicao
-                        ).add_to(m_rota)
+                adicionar_marcadores_ao_mapa(m_rota, df_agrupamento_rota)
 
                 if calcular:
                     lin_origem = df_rotas[df_rotas['Cidade_UF'] == origem].iloc[0]
@@ -723,6 +965,8 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
                     key=f"mapa_rotas_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}"
                 )
 
+                st.markdown(renderizar_legenda_dinamica_html(df_atual_filtrado), unsafe_allow_html=True)
+
                 if saída_mapa_rotas and saída_mapa_rotas.get("last_object_clicked"):
                     lat_clicada = saída_mapa_rotas["last_object_clicked"]["lat"]
                     lng_clicada = saída_mapa_rotas["last_object_clicked"]["lng"]
@@ -733,7 +977,6 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
                     if (dist_lat_r > 0.0001 or dist_lng_r > 0.0001) or st.session_state.map_zoom != 17:
                         st.session_state.map_center = [lat_clicada, lng_clicada]
                         st.session_state.map_zoom = 17
-                        st.session_state.map_bounds = None
                         st.rerun()
 
     st.markdown('</div>', unsafe_allow_html=True)
