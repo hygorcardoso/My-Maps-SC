@@ -180,7 +180,7 @@ def mapear_coluna_flexivel(lista_colunas, alvos):
 
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
-    st.markdown('<div class="version-tag-sidebar">v0.3.2</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-tag-sidebar">v0.3.3</div>', unsafe_allow_html=True)
 
     st.title("📍 My Maps BR")
     st.caption("Modo de Geocodificação Nacional (Tempo Real)")
@@ -320,9 +320,11 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
     # --- DICIONÁRIO DE COORDENADAS CORRIGIDAS (EXCEÇÕES NACIONAIS) ---
     EXCECOES_CIDADES = {
         "ZORTEA": [-27.4514, -51.5542],
-        "CHAPECO": [-27.1004, -52.6152],  # Força Chapecó-SC no Oeste catarinense (não no litoral)
+        "CHAPECO": [-27.1004, -52.6152],
         "CHAPECÓ": [-27.1004, -52.6152],
-        "NAVEGANTES": [-26.8914, -48.6548]  # Força Navegantes-SC no litoral de SC (não no Amazonas)
+        "NAVEGANTES": [-26.8914, -48.6548],
+        "SAO JOSE": [-27.6146, -48.6353],  # Força São José - SC na Região Metropolitana de Florianópolis (Litoral)
+        "SÃO JOSÉ": [-27.6146, -48.6353]
     }
 
     for row in grupo_pontos.itertuples(index=False):
@@ -338,7 +340,7 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
 
         cid_upper = cid_limpa.upper().strip()
 
-        # Intercepta se a cidade estiver no cadastro de exceções geográficas para SC
+        # Intercepta se a cidade estiver cadastrada na tabela de amarras geográficas do estado (SC)
         if cid_upper in EXCECOES_CIDADES and uf_limpa.upper().strip() == "SC":
             st.session_state.coords_sessao[chave_busca] = EXCECOES_CIDADES[cid_upper]
 
