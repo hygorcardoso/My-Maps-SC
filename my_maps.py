@@ -32,22 +32,6 @@ st.markdown(
     <style>
         .block-container { padding: 0rem !important; max-width: 100% !important; }
 
-        /* --- REMOVE O HEADER DO STREAMLIT CLOUD (Share, Star, Editar e GitHub) --- */
-        header, header[data-testid="stHeader"] { 
-            display: none !important; 
-            visibility: hidden !important; 
-            height: 0px !important;
-        }
-
-        # /* --- REMOVE O BOTÃO 'MANAGE APP' DO CANTO INFERIOR DIREITO --- */
-        # div[data-testid="stManageAppButton"], 
-        # div[class*="stManageAppButton"],
-        # button[id*="manage-app"],
-        # iframe[title="manage-app"] {
-        #     display: none !important;
-        #     visibility: hidden !important;
-        # }
-
         #MainMenu, footer { visibility: hidden !important; }
         .map-container { margin-left: 20px !important; margin-right: 20px !important; }
 
