@@ -101,6 +101,7 @@ st.markdown(
             flex-direction: column !important;
         }
 
+        /* --- ESTILO DA VERSÃO NO CANTO INFERIOR DIREITO DA SIDEBAR --- */
         .version-tag-sidebar {
             position: absolute !important;
             bottom: 10px !important;
@@ -120,17 +121,20 @@ st.markdown(
             box-shadow: 0px 2px 8px rgba(0,0,0,0.5) !important;
         }
 
+        /* 🔒 Sidebar sempre visível */
         section[data-testid="stSidebar"] {
             transform: none !important;
             width: 300px !important;
             min-width: 300px !important;
         }
 
+        /* 🔒 Impede qualquer tentativa de esconder */
         section[data-testid="stSidebar"][aria-expanded="false"] {
             transform: none !important;
             width: 300px !important;
         }
 
+        /* 🔒 Remove botão nativo de vez */
         button[data-testid="collapsedControl"],
         button[kind="header"] {
             display: none !important;
@@ -176,7 +180,7 @@ def mapear_coluna_flexivel(lista_colunas, alvos):
 
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
-    st.markdown('<div class="version-tag-sidebar">v0.3.1</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-tag-sidebar">v0.3.2</div>', unsafe_allow_html=True)
 
     st.title("📍 My Maps BR")
     st.caption("Modo de Geocodificação Nacional (Tempo Real)")
@@ -205,7 +209,7 @@ with st.sidebar:
             st.warning("⚠️ Aba padrão não encontrada.")
             aba_selecionada = st.selectbox("Selecione a aba manualmente", abas_disponiveis)
 
-        # --- CONTAINER DE FILTROS ---
+        # --- CONTAINER DE FILTROS DINÂMICOS ---
         st.markdown("---")
         with st.expander("⏳ Filtros", expanded=False):
             if st.session_state.df_final is not None:
@@ -220,12 +224,19 @@ with st.sidebar:
                     st.session_state.df_final['Cliente'].dropna().astype(str).unique().tolist())
                 cliente_selecionado = st.selectbox("Filtrar por Cliente:", opcoes_cliente,
                                                    key="filtro_cliente_dropdown")
+
+                # Dropdown 3: Região
+                opcoes_regiao = ["Todos"] + sorted(
+                    st.session_state.df_final['Regiao'].dropna().astype(str).unique().tolist())
+                regiao_selecionada = st.selectbox("Filtrar por Região:", opcoes_regiao, key="filtro_regiao_dropdown")
             else:
                 st.selectbox("Filtrar por Intervenção:", ["Nenhuma planilha carregada"], disabled=True,
                              key="filtro_intervencao_disabled")
                 st.selectbox("Filtrar por Cliente:", ["Nenhuma planilha carregada"], disabled=True,
                              key="filtro_cliente_disabled")
-                st.caption("💡 Carregue uma planilha e atualize o mapa para habilitar os filtros.")
+                st.selectbox("Filtrar por Região:", ["Nenhuma planilha carregada"], disabled=True,
+                             key="filtro_regiao_disabled")
+                st.caption("💡 Carregue uma planilha e clique em gerar mapa para liberar os filtros.")
 
         if is_novo_arquivo or st.session_state.df_final is None or st.sidebar.button("⚡ Gerar / Atualizar Mapa",
                                                                                      key="btn_gerar"):
@@ -237,7 +248,9 @@ with st.sidebar:
             col_rua = mapear_coluna_flexivel(df_aba.columns.tolist(), ["Endereco", "Endereço", "Logradouro", "Rua"])
             col_intervencao = mapear_coluna_flexivel(df_aba.columns.tolist(), ["Intervencao", "Intervenção", "Tipo"])
             col_cliente = mapear_coluna_flexivel(df_aba.columns.tolist(),
-                                                 ["Cliente", "NomeCliente", "RazaoSocial", "Empresa"])
+                                                 ["Cliente", "NomeCliente", "RazaoSocial", "Aba Cliente", "Empresa"])
+            col_regiao = mapear_coluna_flexivel(df_aba.columns.tolist(),
+                                                ["Regiao", "Região", "Distrito", "Area", "Zona"])
 
             if col_os and col_cidade and col_uf and col_rua:
                 colunas_para_copiar = [col_os, col_cidade, col_uf, col_rua]
@@ -245,6 +258,8 @@ with st.sidebar:
                     colunas_para_copiar.append(col_intervencao)
                 if col_cliente:
                     colunas_para_copiar.append(col_cliente)
+                if col_regiao:
+                    colunas_para_copiar.append(col_regiao)
 
                 df_limpo = df_aba[colunas_para_copiar].dropna(subset=[col_os, col_rua])
 
@@ -258,14 +273,17 @@ with st.sidebar:
                     nomes_colunas[col_intervencao] = 'Intervencao'
                 if col_cliente:
                     nomes_colunas[col_cliente] = 'Cliente'
+                if col_regiao:
+                    nomes_colunas[col_regiao] = 'Regiao'
 
                 df_limpo = df_limpo.rename(columns=nomes_colunas)
 
-                # Trata ausência das colunas opcionais para não quebrar o processamento
                 if 'Intervencao' not in df_limpo.columns:
                     df_limpo['Intervencao'] = "Não Informado"
                 if 'Cliente' not in df_limpo.columns:
                     df_limpo['Cliente'] = "Não Informado"
+                if 'Regiao' not in df_limpo.columns:
+                    df_limpo['Regiao'] = "Não Informado"
 
                 df_limpo['CodOS'] = df_limpo['CodOS'].astype(str).str.split('.').str[0].str.strip()
                 df_limpo = df_limpo.drop_duplicates(subset=['CodOS'], keep='first')
@@ -283,22 +301,29 @@ with st.sidebar:
                 st.session_state.map_bounds = None
                 st.rerun()
             else:
-                st.error("❌ Não foi possível encontrar as colunas obrigatórias (OS, Cidade, UF, Endereço) nesta aba.")
+                st.error(
+                    "❌ Não foi possível encontrar todas as colunas obrigatórias (OS, Cidade, UF, Endereço) nesta aba.")
 
 # --- PROCESSAMENTO E GEOLOCALIZAÇÃO ---
 if st.session_state.df_final is not None and not st.session_state.dados_agrupados_marcador:
     df = st.session_state.df_final
     dados_mapa = df.dropna(subset=['Endereco', 'Cidade', 'SiglaUF'])
 
-    # Agrupa incluindo as dimensões de Intervenção e Cliente
-    grupo_pontos = dados_mapa.groupby(['Endereco', 'Cidade', 'SiglaUF', 'Intervencao', 'Cliente']).size().reset_index(
-        name='qtd')
+    grupo_pontos = dados_mapa.groupby(
+        ['Endereco', 'Cidade', 'SiglaUF', 'Intervencao', 'Cliente', 'Regiao']).size().reset_index(name='qtd')
 
     ctx = ssl.create_default_context(cafile=certifi.where())
     geolocator = Photon(ssl_context=ctx, user_agent="mymaps_br_fast")
 
     pontos_para_buscar = []
-    EXCECOES_CIDADES = {"ZORTEA": [-27.4514, -51.5542]}
+
+    # --- DICIONÁRIO DE COORDENADAS CORRIGIDAS (EXCEÇÕES NACIONAIS) ---
+    EXCECOES_CIDADES = {
+        "ZORTEA": [-27.4514, -51.5542],
+        "CHAPECO": [-27.1004, -52.6152],  # Força Chapecó-SC no Oeste catarinense (não no litoral)
+        "CHAPECÓ": [-27.1004, -52.6152],
+        "NAVEGANTES": [-26.8914, -48.6548]  # Força Navegantes-SC no litoral de SC (não no Amazonas)
+    }
 
     for row in grupo_pontos.itertuples(index=False):
         rua_limpa = str(row.Endereco).strip()
@@ -306,11 +331,14 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
         uf_limpa = str(row.SiglaUF).strip()
         interv_limpa = str(row.Intervencao).strip()
         cli_limpa = str(row.Cliente).strip()
+        reg_limpa = str(row.Regiao).strip()
 
         endereco_completo_busca = f"{rua_limpa}, {cid_limpa} - {uf_limpa}, Brasil"
         chave_busca = endereco_completo_busca.upper().strip()
 
         cid_upper = cid_limpa.upper().strip()
+
+        # Intercepta se a cidade estiver no cadastro de exceções geográficas para SC
         if cid_upper in EXCECOES_CIDADES and uf_limpa.upper().strip() == "SC":
             st.session_state.coords_sessao[chave_busca] = EXCECOES_CIDADES[cid_upper]
 
@@ -318,16 +346,17 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
             pos = st.session_state.coords_sessao[chave_busca]
             st.session_state.dados_agrupados_marcador.append({
                 "pos": pos, "qtd": int(row.qtd), "cid": cid_limpa, "uf": uf_limpa, "rua": rua_limpa,
-                "interv": interv_limpa, "cli": cli_limpa
+                "interv": interv_limpa, "cli": cli_limpa, "reg": reg_limpa
             })
         else:
-            pontos_para_buscar.append((row, endereco_completo_busca, chave_busca, interv_limpa, cli_limpa))
+            pontos_para_buscar.append((row, endereco_completo_busca, chave_busca, interv_limpa, cli_limpa, reg_limpa))
 
     if pontos_para_buscar:
         prog = st.sidebar.progress(0)
         status = st.sidebar.empty()
 
-        for idx, (row, endereco_completo_busca, chave_busca, interv_limpa, cli_limpa) in enumerate(pontos_para_buscar):
+        for idx, (row, endereco_completo_busca, chave_busca, interv_limpa, cli_limpa, reg_limpa) in enumerate(
+                pontos_para_buscar):
             rua = str(row.Endereco).strip()
             cid = str(row.Cidade).strip()
             uf_val = str(row.SiglaUF).strip()
@@ -349,7 +378,7 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
                 st.session_state.coords_sessao[chave_busca] = pos
                 st.session_state.dados_agrupados_marcador.append({
                     "pos": pos, "qtd": int(row.qtd), "cid": cid, "uf": uf_val, "rua": rua, "interv": interv_limpa,
-                    "cli": cli_limpa
+                    "cli": cli_limpa, "reg": reg_limpa
                 })
 
             prog.progress((idx + 1) / len(pontos_para_buscar))
@@ -393,19 +422,20 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
 def construir_mapa_geral():
     filtro_interv = st.session_state.get("filtro_intervencao_dropdown", "Todos")
     filtro_cliente = st.session_state.get("filtro_cliente_dropdown", "Todos")
+    filtro_regiao = st.session_state.get("filtro_regiao_dropdown", "Todos")
 
     m = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
 
-    # Filtra os dados com base nos dois dropdowns ativos
     dados_filtrados = []
     for p in st.session_state.dados_agrupados_marcador:
         if filtro_interv != "Todos" and p["interv"] != filtro_interv:
             continue
         if filtro_cliente != "Todos" and p["cli"] != filtro_cliente:
             continue
+        if filtro_regiao != "Todos" and p["reg"] != filtro_regiao:
+            continue
         dados_filtrados.append(p)
 
-    # Agrupamento geográfico para consolidar as somas visuais de bolhas no mapa
     df_agrupamento_mapa = pd.DataFrame(dados_filtrados)
     if not df_agrupamento_mapa.empty:
         df_agrupamento_mapa['lat'] = df_agrupamento_mapa['pos'].apply(lambda x: x[0])
@@ -437,14 +467,16 @@ if st.session_state.df_final is not None and CONSEGUI_VER_LISTA:
     with st.sidebar:
         df = st.session_state.df_final.copy()
 
-        # Sincroniza a lista de chamados com os filtros de Intervenção e Cliente
         filtro_interv = st.session_state.get("filtro_intervencao_dropdown", "Todos")
         filtro_cliente = st.session_state.get("filtro_cliente_dropdown", "Todos")
+        filtro_regiao = st.session_state.get("filtro_regiao_dropdown", "Todos")
 
         if filtro_interv != "Todos":
             df = df[df['Intervencao'] == filtro_interv]
         if filtro_cliente != "Todos":
             df = df[df['Cliente'] == filtro_cliente]
+        if filtro_regiao != "Todos":
+            df = df[df['Regiao'] == filtro_regiao]
 
         df_botoes = df.copy()
         df_botoes['OS_Num'] = pd.to_numeric(df_botoes['CodOS'], errors='coerce')
@@ -517,7 +549,6 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
             key=f"mapa_geral_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}"
         )
 
-        # --- LÓGICA DE APROXIMAÇÃO AO CLICAR NO MARCADOR DO MAPA ---
         if saída_mapa_geral and saída_mapa_geral.get("last_object_clicked"):
             clique = saída_mapa_geral["last_object_clicked"]
             lat_clicada = clique["lat"]
@@ -547,12 +578,15 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
         with abas_renderizadas[1]:
             filtro_interv = st.session_state.get("filtro_intervencao_dropdown", "Todos")
             filtro_cliente = st.session_state.get("filtro_cliente_dropdown", "Todos")
+            filtro_regiao = st.session_state.get("filtro_regiao_dropdown", "Todos")
 
             df_rotas = st.session_state.df_final.copy()
             if filtro_interv != "Todos":
                 df_rotas = df_rotas[df_rotas['Intervencao'] == filtro_interv]
             if filtro_cliente != "Todos":
                 df_rotas = df_rotas[df_rotas['Cliente'] == filtro_cliente]
+            if filtro_regiao != "Todos":
+                df_rotas = df_rotas[df_rotas['Regiao'] == filtro_regiao]
 
             df_rotas['Cidade_UF'] = df_rotas['Cidade'] + " - " + df_rotas['SiglaUF']
             lista_cidades_br = sorted(df_rotas['Cidade_UF'].unique().tolist())
@@ -574,6 +608,8 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
                     if filtro_interv != "Todos" and p["interv"] != filtro_interv:
                         continue
                     if filtro_cliente != "Todos" and p["cli"] != filtro_cliente:
+                        continue
+                    if filtro_regiao != "Todos" and p["reg"] != filtro_regiao:
                         continue
 
                     raio_marcador = min(9 + (p["qtd"] * 0.2), 28)
