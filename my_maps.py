@@ -39,14 +39,14 @@ st.markdown(
             height: 0px !important;
         }
 
-        /* --- REMOVE O BOTÃO 'MANAGE APP' DO CANTO INFERIOR DIREITO --- */
-        div[data-testid="stManageAppButton"], 
-        div[class*="stManageAppButton"],
-        button[id*="manage-app"],
-        iframe[title="manage-app"] {
-            display: none !important;
-            visibility: hidden !important;
-        }
+        # /* --- REMOVE O BOTÃO 'MANAGE APP' DO CANTO INFERIOR DIREITO --- */
+        # div[data-testid="stManageAppButton"], 
+        # div[class*="stManageAppButton"],
+        # button[id*="manage-app"],
+        # iframe[title="manage-app"] {
+        #     display: none !important;
+        #     visibility: hidden !important;
+        # }
 
         #MainMenu, footer { visibility: hidden !important; }
         .map-container { margin-left: 20px !important; margin-right: 20px !important; }
@@ -141,6 +141,25 @@ st.markdown(
             pointer-events: none !important;
             box-shadow: 0px 2px 8px rgba(0,0,0,0.5) !important;
         }
+        
+        /* 🔒 Sidebar sempre visível */
+        section[data-testid="stSidebar"] {
+            transform: none !important;
+            width: 300px !important;
+            min-width: 300px !important;
+        }
+        
+        /* 🔒 Impede qualquer tentativa de esconder */
+        section[data-testid="stSidebar"][aria-expanded="false"] {
+            transform: none !important;
+            width: 300px !important;
+        }
+        
+        /* 🔒 Remove botão nativo de vez */
+        button[data-testid="collapsedControl"],
+        button[kind="header"] {
+            display: none !important;
+        }
     </style>
     """,
     unsafe_allow_html=True
@@ -183,7 +202,7 @@ def mapear_coluna_flexivel(lista_colunas, alvos):
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
     # Injeta o elemento da versão no DOM da sidebar
-    st.markdown('<div class="version-tag-sidebar">v0.2.2</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-tag-sidebar">v0.2.3</div>', unsafe_allow_html=True)
 
     st.title("📍 My Maps BR")
     st.caption("Modo de Geocodificação Nacional (Tempo Real)")
