@@ -22,17 +22,16 @@ def obter_config(chave, valor_padrao=True):
 CONSEGUI_VER_LISTA = obter_config("HABILITAR_LISTA_CHAMADOS", True)
 CONSEGUI_VER_ROTAS = obter_config("HABILITAR_ABA_ROTAS", True)
 
-# 2. CSS GLOBAL (VISUAL REFORMULADO E ANTI-CORTE PARA ABAS DE 30PX)
+# 2. CSS GLOBAL
 st.markdown(
     """
     <style>
-        .block-container { padding-top: 10px !important; padding-left: 0rem !important; padding-right: 0rem 
-        !important; padding-bottom: 0rem !important; max-width: 100% !important; }
+        .block-container { padding: 20px !important; max-width: 100% !important; }
 
         .map-container { margin-left: 20px !important; margin-right: 20px !important; }
 
         .lista-chamados-container {
-            max-height: 4000px;
+            max-height: 400px;
             overflow-y: auto;
             background-color: #262730;
             padding: 10px;
@@ -40,14 +39,13 @@ st.markdown(
             border: 1px solid #464855;
         }
 
-        /* --- SELETORES DE ALTURA PARA BOTÕES DE FLUXO/FORMULÁRIO --- */
+        /* --- SELETORES GERAIS PARA BOTÕES DE FLUXO/FORMULÁRIO --- */
         div[data-testid="stButton"] button,
         div[data-testid="stSidebar"] button[disabled="false"],
-        div[data-testid="stHorizontalBlock"] button,
-        .lista-chamados-container button {
+        div[data-testid="stHorizontalBlock"] button {
             min-height: 55px !important;
             height: 55px !important;
-            line-height: 35px !important;
+            line-height: 55px !important;
             font-size: 15px !important;
             font-weight: bold !important;
             display: inline-flex !important;
@@ -58,16 +56,25 @@ st.markdown(
             padding: 10px 15px !important;
         }
 
-        /* Botões específicos da lista de chamados */
+        /* BOTOÕES DA LISTA DE CHAMADOS SE AJUSTAREM AO TEXTO */
         .lista-chamados-container button {
-            justify-content: flex-start !important;
+            min-height: 45px !important;
+            height: auto !important;
+            line-height: 1.4 !important;
+            font-size: 13px !important;
+            font-weight: bold !important;
+            display: block !important;
             text-align: left !important;
             font-family: monospace !important;
             background-color: #1E1E24 !important;
             border: 1px solid #3e404f !important;
             color: #E0E0E0 !important;
             margin-bottom: 8px !important;
-            line-height: normal !important;
+            width: 100% !important;
+            box-sizing: border-box !important;
+            padding: 12px 14px !important;
+            white-space: normal !important;
+            word-wrap: break-word !important;
         }
 
         .lista-chamados-container button:hover {
@@ -96,36 +103,30 @@ st.markdown(
             box-shadow: 0px 6px 16px rgba(0, 123, 255, 0.5) !important;
         }
 
-        /* --- ABAS DE NAVEGAÇÃO SUPERIOR --- */
+        /* --- FIXAÇÃO DA LARGURA E ALTURA DE 30PX NA ABA SUPERIOR DE NAVEGAÇÃO --- */
         div[data-testid="stTabs"] {
             background-color: #1E1E24 !important;
-            padding: 6px 8px !important;
+            padding: 4px !important;
             border-radius: 8px !important;
             border: 1px solid #3e404f !important;
             margin-bottom: 20px !important;
             margin-left: 20px !important;
             margin-right: 20px !important;
-            margin-top: 10px !important;
-            overflow: visible !important;
         }
 
         div[data-testid="stTabs"] div[role="tablist"] {
             border-bottom: none !important;
             gap: 6px !important;
-            min-height: 36px !important;
-            height: auto !important;
+            height: 30px !important;
+            min-height: 30px !important;
             display: flex !important;
             align-items: center !important;
-            flex-wrap: nowrap !important;
-            overflow: visible !important;
         }
 
-        /* Botões das abas */
         div[data-testid="stTabs"] div[role="tablist"] button[data-baseweb="tab"] {
-            min-height: 36px !important;
-            height: 36px !important;
+            min-height: 30px !important;
+            height: 30px !important;
             width: auto !important;
-            min-width: 100px !important;
             background-color: transparent !important;
             border: none !important;
             color: #E0E0E0 !important;
@@ -138,8 +139,6 @@ st.markdown(
             justify-content: center !important;
             line-height: normal !important;
             margin: 0 !important;
-            overflow: visible !important;
-            white-space: nowrap !important;
         }
 
         /* Aba Ativa (Selecionada) */
@@ -155,20 +154,16 @@ st.markdown(
             background-color: rgba(255, 255, 255, 0.05) !important;
         }
 
-        /* Texto interno dos botões de aba */
-        div[data-testid="stTabs"] button[data-baseweb="tab"] div,
-        div[data-testid="stTabs"] button[data-baseweb="tab"] p,
-        div[data-testid="stTabs"] button[data-baseweb="tab"] span {
+        /* Limpa distorções em blocos de texto internos do Streamlit */
+        div[data-testid="stTabs"] button[data-baseweb="tab"] div {
             display: inline-flex !important;
             align-items: center !important;
             justify-content: center !important;
             line-height: normal !important;
             height: auto !important;
-            overflow: visible !important;
-            white-space: nowrap !important;
         }
 
-        /* Oculta linhas de realce nativas do framework */
+        /* Oculta as linhas de realce nativas */
         div[data-testid="stTabs"] [data-baseweb="tab-border"],
         div[data-testid="stTabs"] [class*="StyledTabBorder"],
         div[data-testid="stTabs"] [class*="StyledTabHighlight"] {
@@ -212,27 +207,16 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# Inicializa estados globais
-if 'df_final' not in st.session_state:
-    st.session_state.df_final = None
-if 'chamado_selecionado' not in st.session_state:
-    st.session_state.chamado_selecionado = None
-
-if 'map_center' not in st.session_state:
-    st.session_state.map_center = [-14.2350, -51.9253]
-if 'map_zoom' not in st.session_state:
-    st.session_state.map_zoom = 4
-if 'map_bounds' not in st.session_state:
-    st.session_state.map_bounds = None
-
-if 'ultimo_arquivo' not in st.session_state:
-    st.session_state.ultimo_arquivo = None
-if 'expander_aberto' not in st.session_state:
-    st.session_state.expander_aberto = False
-if 'coords_sessao' not in st.session_state:
-    st.session_state.coords_sessao = {}
-if 'dados_agrupados_marcador' not in st.session_state:
-    st.session_state.dados_agrupados_marcador = []
+# Inicializa estados globais padrão
+if 'df_final' not in st.session_state: st.session_state.df_final = None
+if 'chamado_selecionado' not in st.session_state: st.session_state.chamado_selecionado = None
+if 'map_center' not in st.session_state: st.session_state.map_center = [-14.2350, -51.9253]
+if 'map_zoom' not in st.session_state: st.session_state.map_zoom = 4
+if 'map_bounds' not in st.session_state: st.session_state.map_bounds = None
+if 'ultimo_arquivo' not in st.session_state: st.session_state.ultimo_arquivo = None
+if 'expander_aberto' not in st.session_state: st.session_state.expander_aberto = False
+if 'coords_sessao' not in st.session_state: st.session_state.coords_sessao = {}
+if 'dados_agrupados_marcador' not in st.session_state: st.session_state.dados_agrupados_marcador = []
 
 # Retenção do formulário
 if 'f_interv' not in st.session_state: st.session_state.f_interv = "Todos"
@@ -253,7 +237,7 @@ def mapear_coluna_flexivel(lista_colunas, alvos):
 
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
-    st.markdown('<div class="version-tag-sidebar">v0.3.5</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-tag-sidebar">v0.3.6</div>', unsafe_allow_html=True)
 
     st.title("📍 My Maps BR")
     st.caption("Modo de Geocodificação Nacional (Tempo Real)")
@@ -261,8 +245,28 @@ with st.sidebar:
 
     arquivo = st.file_uploader("Upload da Planilha Excel", type=["xlsx"])
 
+    # 🆕 --- LÓGICA DE DETECÇÃO DO "X" (REMOVER ARQUIVO) OU NOVO ARQUIVO ---
+    if arquivo is None and st.session_state.ultimo_arquivo is not None:
+        # Usuário clicou no "X" para deletar o arquivo: Limpa completamente a memória do app
+        st.session_state.df_final = None
+        st.session_state.chamado_selecionado = None
+        st.session_state.dados_agrupados_marcador = []
+        st.session_state.coords_sessao = {}
+        st.session_state.ultimo_arquivo = None
+        st.session_state.f_interv, st.session_state.f_clie, st.session_state.f_regi = "Todos", "Todos", "Todos"
+        st.session_state.map_center = [-14.2350, -51.9253]
+        st.session_state.map_zoom = 4
+        st.rerun()
+
     if arquivo:
         is_novo_arquivo = (st.session_state.ultimo_arquivo != arquivo.name)
+
+        # Se um arquivo totalmente novo foi jogado por cima, limpa caches antigos para evitar misturar dados
+        if is_novo_arquivo:
+            st.session_state.dados_agrupados_marcador = []
+            st.session_state.chamado_selecionado = None
+            st.session_state.f_interv, st.session_state.f_clie, st.session_state.f_regi = "Todos", "Todos", "Todos"
+
         xl = pd.ExcelFile(arquivo)
         abas_disponiveis = xl.sheet_names
 
@@ -412,7 +416,6 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
             pontos_para_buscar.append(
                 (row, endereco_completo_busca, chave_busca, interv_limpa, cli_limpa, reg_limpa, os_limpa, sla_limpa))
 
-    # --- 🔍 CORREÇÃO AQUI: Variável corrigida de 'puntos_para_buscar' para 'pontos_para_buscar' ---
     if pontos_para_buscar:
         prog = st.sidebar.progress(0)
         status = st.sidebar.empty()
@@ -566,7 +569,7 @@ if st.session_state.df_final is not None and CONSEGUI_VER_LISTA:
 if st.session_state.df_final is not None and st.session_state.dados_agrupados_marcador:
     st.markdown('<div class="map-container">', unsafe_allow_html=True)
 
-    lista_abas_nome = ["🗺️ Mapa"]
+    lista_abas_nome = ["🗺️ Visão Geral"]
     if CONSEGUI_VER_ROTAS: lista_abas_nome.append("🚗 Traçar Rotas")
 
     abas_renderizations = st.tabs(lista_abas_nome)
@@ -613,7 +616,7 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
             else:
                 col1, col2, col3 = st.columns([2, 2, 1.2])
                 with col1:
-                    origem = st.selectbox("📍 Cidade de Origem", lista_cidades_br, key="origem_rota")
+                    origem = st.selectbox("📍git ", lista_cidades_br, key="origem_rota")
                 with col2:
                     destino = st.selectbox("🏁 Cidade de Destino", lista_cidades_br,
                                            index=min(1, len(lista_cidades_br) - 1), key="destino_rota")
@@ -622,7 +625,6 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
 
                 m_rota = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
 
-                # RECONSTRUTOR DINÂMICO DOS MARCADORES DE ACORDO COM SEUS DADOS TRATADOS
                 dados_filtrados_rota = []
                 for p in st.session_state.dados_agrupados_marcador:
                     if st.session_state.f_interv != "Todos" and p["interv"] != st.session_state.f_interv: continue
