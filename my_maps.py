@@ -32,7 +32,6 @@ st.markdown(
     <style>
         .block-container { padding: 0rem !important; max-width: 100% !important; }
 
-        #MainMenu, footer { visibility: hidden !important; }
         .map-container { margin-left: 20px !important; margin-right: 20px !important; }
 
         .lista-chamados-container {
