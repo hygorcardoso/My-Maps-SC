@@ -180,7 +180,7 @@ def mapear_coluna_flexivel(lista_colunas, alvos):
 
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
-    st.markdown('<div class="version-tag-sidebar">v0.3.3</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-tag-sidebar">v0.3.4</div>', unsafe_allow_html=True)
 
     st.title("📍 My Maps BR")
     st.caption("Modo de Geocodificação Nacional (Tempo Real)")
@@ -252,6 +252,10 @@ with st.sidebar:
             col_regiao = mapear_coluna_flexivel(df_aba.columns.tolist(),
                                                 ["Regiao", "Região", "Distrito", "Area", "Zona"])
 
+            # 🆕 Modificado para puxar dinamicamente a coluna LimiteAtendimento conforme sua instrução
+            col_sla = mapear_coluna_flexivel(df_aba.columns.tolist(),
+                                             ["LimiteAtendimento", "LimiteAtend", "Limite Atendimento", "SLA", "Prazo"])
+
             if col_os and col_cidade and col_uf and col_rua:
                 colunas_para_copiar = [col_os, col_cidade, col_uf, col_rua]
                 if col_intervencao:
@@ -260,6 +264,8 @@ with st.sidebar:
                     colunas_para_copiar.append(col_cliente)
                 if col_regiao:
                     colunas_para_copiar.append(col_regiao)
+                if col_sla:
+                    colunas_para_copiar.append(col_sla)
 
                 df_limpo = df_aba[colunas_para_copiar].dropna(subset=[col_os, col_rua])
 
@@ -275,6 +281,8 @@ with st.sidebar:
                     nomes_colunas[col_cliente] = 'Cliente'
                 if col_regiao:
                     nomes_colunas[col_regiao] = 'Regiao'
+                if col_sla:
+                    nomes_colunas[col_sla] = 'SLA'
 
                 df_limpo = df_limpo.rename(columns=nomes_colunas)
 
@@ -284,6 +292,8 @@ with st.sidebar:
                     df_limpo['Cliente'] = "Não Informado"
                 if 'Regiao' not in df_limpo.columns:
                     df_limpo['Regiao'] = "Não Informado"
+                if 'SLA' not in df_limpo.columns:
+                    df_limpo['SLA'] = ""
 
                 df_limpo['CodOS'] = df_limpo['CodOS'].astype(str).str.split('.').str[0].str.strip()
                 df_limpo = df_limpo.drop_duplicates(subset=['CodOS'], keep='first')
@@ -302,7 +312,7 @@ with st.sidebar:
                 st.rerun()
             else:
                 st.error(
-                    "❌ Não foi possível encontrar todas as colunas obrigatórias (OS, Cidade, UF, Endereço) nesta aba.")
+                    "❌ Não foi possível encontrar todas as colunas obrigatórias (OS, Cidade, UF, Endereco) nesta aba.")
 
 # --- PROCESSAMENTO E GEOLOCALIZAÇÃO ---
 if st.session_state.df_final is not None and not st.session_state.dados_agrupados_marcador:
@@ -310,20 +320,20 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
     dados_mapa = df.dropna(subset=['Endereco', 'Cidade', 'SiglaUF'])
 
     grupo_pontos = dados_mapa.groupby(
-        ['Endereco', 'Cidade', 'SiglaUF', 'Intervencao', 'Cliente', 'Regiao']).size().reset_index(name='qtd')
+        ['Endereco', 'Cidade', 'SiglaUF', 'Intervencao', 'Cliente', 'Regiao', 'CodOS', 'SLA']).size().reset_index(
+        name='qtd')
 
     ctx = ssl.create_default_context(cafile=certifi.where())
     geolocator = Photon(ssl_context=ctx, user_agent="mymaps_br_fast")
 
     pontos_para_buscar = []
 
-    # --- DICIONÁRIO DE COORDENADAS CORRIGIDAS (EXCEÇÕES NACIONAIS) ---
     EXCECOES_CIDADES = {
         "ZORTEA": [-27.4514, -51.5542],
         "CHAPECO": [-27.1004, -52.6152],
         "CHAPECÓ": [-27.1004, -52.6152],
         "NAVEGANTES": [-26.8914, -48.6548],
-        "SAO JOSE": [-27.6146, -48.6353],  # Força São José - SC na Região Metropolitana de Florianópolis (Litoral)
+        "SAO JOSE": [-27.6146, -48.6353],
         "SÃO JOSÉ": [-27.6146, -48.6353]
     }
 
@@ -334,13 +344,14 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
         interv_limpa = str(row.Intervencao).strip()
         cli_limpa = str(row.Cliente).strip()
         reg_limpa = str(row.Regiao).strip()
+        os_limpa = str(row.CodOS).strip()
+        sla_limpa = str(row.SLA).strip()
 
         endereco_completo_busca = f"{rua_limpa}, {cid_limpa} - {uf_limpa}, Brasil"
         chave_busca = endereco_completo_busca.upper().strip()
 
         cid_upper = cid_limpa.upper().strip()
 
-        # Intercepta se a cidade estiver cadastrada na tabela de amarras geográficas do estado (SC)
         if cid_upper in EXCECOES_CIDADES and uf_limpa.upper().strip() == "SC":
             st.session_state.coords_sessao[chave_busca] = EXCECOES_CIDADES[cid_upper]
 
@@ -348,17 +359,18 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
             pos = st.session_state.coords_sessao[chave_busca]
             st.session_state.dados_agrupados_marcador.append({
                 "pos": pos, "qtd": int(row.qtd), "cid": cid_limpa, "uf": uf_limpa, "rua": rua_limpa,
-                "interv": interv_limpa, "cli": cli_limpa, "reg": reg_limpa
+                "interv": interv_limpa, "cli": cli_limpa, "reg": reg_limpa, "os": os_limpa, "sla": sla_limpa
             })
         else:
-            pontos_para_buscar.append((row, endereco_completo_busca, chave_busca, interv_limpa, cli_limpa, reg_limpa))
+            pontos_para_buscar.append(
+                (row, endereco_completo_busca, chave_busca, interv_limpa, cli_limpa, reg_limpa, os_limpa, sla_limpa))
 
     if pontos_para_buscar:
         prog = st.sidebar.progress(0)
         status = st.sidebar.empty()
 
-        for idx, (row, endereco_completo_busca, chave_busca, interv_limpa, cli_limpa, reg_limpa) in enumerate(
-                pontos_para_buscar):
+        for idx, (row, endereco_completo_busca, chave_busca, interv_limpa, cli_limpa, reg_limpa, os_limpa,
+                  sla_limpa) in enumerate(pontos_para_buscar):
             rua = str(row.Endereco).strip()
             cid = str(row.Cidade).strip()
             uf_val = str(row.SiglaUF).strip()
@@ -379,8 +391,8 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
             if pos:
                 st.session_state.coords_sessao[chave_busca] = pos
                 st.session_state.dados_agrupados_marcador.append({
-                    "pos": pos, "qtd": int(row.qtd), "cid": cid, "uf": uf_val, "rua": rua, "interv": interv_limpa,
-                    "cli": cli_limpa, "reg": reg_limpa
+                    "pos": pos, "qtd": int(row.qtd), "cid": cid, "uf": uf_val, "rua": rua,
+                    "interv": interv_limpa, "cli": cli_limpa, "reg": reg_limpa, "os": os_limpa, "sla": sla_limpa
                 })
 
             prog.progress((idx + 1) / len(pontos_para_buscar))
@@ -443,18 +455,47 @@ def construir_mapa_geral():
         df_agrupamento_mapa['lat'] = df_agrupamento_mapa['pos'].apply(lambda x: x[0])
         df_agrupamento_mapa['lng'] = df_agrupamento_mapa['pos'].apply(lambda x: x[1])
 
-        res_agrupado = df_agrupamento_mapa.groupby(['lat', 'lng', 'cid', 'uf', 'rua'])['qtd'].sum().reset_index()
+        # Agrupa os chamados que caem no mesmo ponto geográfico
+        for (lat, lng), grupo_local in df_agrupamento_mapa.groupby(['lat', 'lng']):
+            total_chamados = grupo_local['qtd'].sum()
 
-        for p in res_agrupado.itertuples():
-            raio_marcador = min(9 + (p.qtd * 0.2), 28)
+            primeiro = grupo_local.iloc[0]
+            cid = primeiro['cid']
+            uf = primeiro['uf']
+            rua = primeiro['rua']
+
+            # CONSTRUÇÃO DO CARD RESUMO EM HTML
+            texto_exibicao = f"""
+            <div style='font-family: Arial, sans-serif; min-width: 240px;'>
+                <span style='font-size: 14px; font-weight: bold; color: #FF4B4B;'>📍 {cid} - {uf}</span><br>
+                <small style='color: #666;'>{rua}</small><br>
+                <hr style='margin: 8px 0; border: 0; border-top: 1px solid #ddd;'>
+            """
+
+            # Itera sobre todos os chamados agrupados nesta coordenada
+            for chamado in grupo_local.itertuples():
+                texto_exibicao += f"<b>Cliente:</b> {chamado.cli}<br>"
+                texto_exibicao += f"<b>Nº Chamado:</b> {chamado.os}<br>"
+
+                # 🆕 Condição de exibição do SLA ajustada para respeitar valores vazios ou "S/N"
+                sla_val = str(chamado.sla).strip()
+                if sla_val and sla_val.upper() != "S/N" and sla_val.upper() != "NAN":
+                    texto_exibicao += f"<b>SLA:</b> {sla_val}<br>"
+
+                texto_exibicao += "<hr style='margin: 6px 0; border: 0; border-top: 1px dashed #eee;'>" if len(
+                    grupo_local) > 1 else ""
+
+            texto_exibicao += f"<span style='font-size: 11px; font-weight: bold; color: #333;'>Total de chamados no local: {total_chamados}</span>"
+            texto_exibicao += "</div>"
+
+            raio_marcador = min(9 + (total_chamados * 0.2), 28)
             diametro = int(raio_marcador * 2)
             tamanho_fonte = max(8, min(12, int(raio_marcador * 0.65)))
-            texto_exibicao = f"<b>{p.cid} - {p.uf}</b><br><small>{p.rua}</small><br>Chamados: {p.qtd}"
 
-            html_icone = f"""<div style="background-color: #FF4B4B; color: white; border: 1px solid #1E1E1E; border-radius: 50%; width: {diametro}px; height: {diametro}px; display: flex; align-items: center; justify-content: center; font-size: {tamanho_fonte}px; font-weight: bold; box-shadow: 0px 0px 8px #FF4B4B;">{p.qtd}</div>"""
+            html_icone = f"""<div style="background-color: #FF4B4B; color: white; border: 1px solid #1E1E1E; border-radius: 50%; width: {diametro}px; height: {diametro}px; display: flex; align-items: center; justify-content: center; font-size: {tamanho_fonte}px; font-weight: bold; box-shadow: 0px 0px 8px #FF4B4B;">{total_chamados}</div>"""
 
             folium.Marker(
-                location=[p.lat, p.lng],
+                location=[lat, lng],
                 icon=folium.DivIcon(html=html_icone, icon_size=(diametro, diametro),
                                     icon_anchor=(raio_marcador, raio_marcador)),
                 tooltip=texto_exibicao,
@@ -535,9 +576,9 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
     if CONSEGUI_VER_ROTAS:
         lista_abas_nome.append("🚗 Traçar Rotas")
 
-    abas_renderizadas = st.tabs(lista_abas_nome)
+    abas_renderizations = st.tabs(lista_abas_nome)
 
-    with abas_renderizadas[0]:
+    with abas_renderizations[0]:
         mapa_atualizado = construir_mapa_geral()
 
         saída_mapa_geral = st_folium(
@@ -577,7 +618,7 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
                 st.rerun()
 
     if CONSEGUI_VER_ROTAS:
-        with abas_renderizadas[1]:
+        with abas_renderizations[1]:
             filtro_interv = st.session_state.get("filtro_intervencao_dropdown", "Todos")
             filtro_cliente = st.session_state.get("filtro_cliente_dropdown", "Todos")
             filtro_regiao = st.session_state.get("filtro_regiao_dropdown", "Todos")
@@ -673,7 +714,7 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
                                         altLineOptions: {{ styles: [[{{color: '#9400D3', opacity: 0.6, weight: 4}}]] }},
                                         lineOptions: {{ styles: [{{color: '#007BFF', opacity: 0.85, weight: 6}}] }},
                                         createMarker: function(i, wp, nWps) {{
-                                            var label = i === 0 ? "Início" : (i === nWps - 1 ? "Fim" : "Ponto de Desvio");
+                                            var label = i === 0 ? \"Início\" : (i === nWps - 1 ? \"Fim\" : \"Ponto de Desvio\");
                                             return L.marker(wp.latLng, {{ draggable: true }}).bindPopup(label);
                                         }}
                                     }}).addTo(mapInstance);
