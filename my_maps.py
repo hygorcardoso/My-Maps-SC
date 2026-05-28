@@ -3,12 +3,8 @@ import pandas as pd
 import folium
 from streamlit_folium import st_folium
 from geopy.geocoders import Photon
-import json
-import os
-import time
 import ssl
 import certifi
-import requests
 
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="My Maps BR", layout="wide")
@@ -124,20 +120,20 @@ st.markdown(
             pointer-events: none !important;
             box-shadow: 0px 2px 8px rgba(0,0,0,0.5) !important;
         }
-        
+
         /* 🔒 Sidebar sempre visível */
         section[data-testid="stSidebar"] {
             transform: none !important;
             width: 300px !important;
             min-width: 300px !important;
         }
-        
+
         /* 🔒 Impede qualquer tentativa de esconder */
         section[data-testid="stSidebar"][aria-expanded="false"] {
             transform: none !important;
             width: 300px !important;
         }
-        
+
         /* 🔒 Remove botão nativo de vez */
         button[data-testid="collapsedControl"],
         button[kind="header"] {
@@ -149,8 +145,6 @@ st.markdown(
 )
 
 # Inicializa estados globais
-if 'mapa_pronto' not in st.session_state:
-    st.session_state.mapa_pronto = None
 if 'df_final' not in st.session_state:
     st.session_state.df_final = None
 if 'chamado_selecionado' not in st.session_state:
@@ -169,6 +163,8 @@ if 'expander_aberto' not in st.session_state:
     st.session_state.expander_aberto = False
 if 'coords_sessao' not in st.session_state:
     st.session_state.coords_sessao = {}
+if 'dados_agrupados_marcador' not in st.session_state:
+    st.session_state.dados_agrupados_marcador = []
 
 
 def mapear_coluna_flexivel(lista_colunas, alvos):
@@ -184,8 +180,7 @@ def mapear_coluna_flexivel(lista_colunas, alvos):
 
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
-    # Injeta o elemento da versão no DOM da sidebar
-    st.markdown('<div class="version-tag-sidebar">v0.2.3</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-tag-sidebar">v0.2.4</div>', unsafe_allow_html=True)
 
     st.title("📍 My Maps BR")
     st.caption("Modo de Geocodificação Nacional (Tempo Real)")
@@ -240,22 +235,19 @@ with st.sidebar:
                 st.session_state.ultimo_arquivo = arquivo.name
                 st.session_state.chamado_selecionado = None
 
+                st.session_state.expander_aberto = False
+                st.session_state.coords_sessao = {}
+                st.session_state.dados_agrupados_marcador = []
+
                 st.session_state.map_center = [-14.2350, -51.9253]
                 st.session_state.map_zoom = 4
                 st.session_state.map_bounds = None
-
-                st.session_state.expander_aberto = False
-                st.session_state.coords_sessao = {}
-
-                st.session_state.mapa_pronto = "solicitar_geracao"
                 st.rerun()
             else:
                 st.error("❌ Não foi possível encontrar todas as colunas (OS, Cidade, UF, Endereco) nesta aba.")
 
-# --- PROCESSAMENTO DO MAPA AUTOMÁTICO ---
-if st.session_state.df_final is not None:
-    m = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
-
+# --- PROCESSAMENTO E GEOLOCALIZAÇÃO ---
+if st.session_state.df_final is not None and not st.session_state.dados_agrupados_marcador:
     df = st.session_state.df_final
     dados_mapa = df.dropna(subset=['Endereco', 'Cidade', 'SiglaUF'])
     grupo_pontos = dados_mapa.groupby(['Endereco', 'Cidade', 'SiglaUF']).size().reset_index(name='qtd')
@@ -266,6 +258,7 @@ if st.session_state.df_final is not None:
     pontos_para_buscar = []
     EXCECOES_CIDADES = {"ZORTEA": [-27.4514, -51.5542]}
 
+    # Identifica o que precisa buscar ou o que já está em cache local
     for row in grupo_pontos.itertuples(index=False):
         rua_limpa = str(row.Endereco).strip()
         cid_limpa = str(row.Cidade).strip()
@@ -280,17 +273,9 @@ if st.session_state.df_final is not None:
 
         if chave_busca in st.session_state.coords_sessao:
             pos = st.session_state.coords_sessao[chave_busca]
-            qtd_chamados = int(row.qtd)
-            raio_marcador = min(9 + (qtd_chamados * 0.2), 28)
-            diametro = int(raio_marcador * 2)
-            tamanho_fonte = max(8, min(12, int(raio_marcador * 0.65)))
-            texto_exibicao = f"<b>{cid_limpa} - {uf_limpa}</b><br><small>{rua_limpa}</small><br>Chamados no local: {qtd_chamados}"
-
-            html_icone = f"""<div style="background-color: #FF4B4B; color: white; border: 1px solid #1E1E1E; border-radius: 50%; width: {diametro}px; height: {diametro}px; display: flex; align-items: center; justify-content: center; font-size: {tamanho_fonte}px; font-weight: bold; box-shadow: 0px 0px 8px #FF4B4B;">{qtd_chamados}</div>"""
-
-            folium.Marker(location=pos, icon=folium.DivIcon(html=html_icone, icon_size=(diametro, diametro),
-                                                            icon_anchor=(raio_marcador, raio_marcador)),
-                          tooltip=texto_exibicao, popup=texto_exibicao).add_to(m)
+            st.session_state.dados_agrupados_marcador.append({
+                "pos": pos, "qtd": int(row.qtd), "cid": cid_limpa, "uf": uf_limpa, "rua": rua_limpa
+            })
         else:
             pontos_para_buscar.append((row, endereco_completo_busca, chave_busca))
 
@@ -303,32 +288,24 @@ if st.session_state.df_final is not None:
             cid = str(row.Cidade).strip()
             uf_val = str(row.SiglaUF).strip()
 
-            raio_marcador = min(9 + (int(row.qtd) * 0.2), 28)
-            diametro = int(raio_marcador * 2)
-            tamanho_fonte = max(8, min(12, int(raio_marcador * 0.65)))
-            texto_exibicao = f"<b>{cid} - {uf_val}</b><br><small>{rua}</small><br>Chamados no local: {int(row.qtd)}"
-
-            html_icone = f"""<div style="background-color: #FF4B4B; color: white; border: 1px solid #1E1E1E; border-radius: 50%; width: {diametro}px; height: {diametro}px; display: flex; align-items: center; justify-content: center; font-size: {tamanho_fonte}px; font-weight: bold; box-shadow: 0px 0px 8px #FF4B4B;">{int(row.qtd)}</div>"""
-
             status.text(f"🌐 Buscando locais: {cid}-{uf_val} ({idx + 1}/{len(pontos_para_buscar)})...")
             pos = None
             try:
                 loc = geolocator.geocode(endereco_completo_busca, timeout=3)
                 if loc:
                     pos = [loc.latitude, loc.longitude]
-                    st.session_state.coords_sessao[chave_busca] = pos
                 else:
                     loc_fallback = geolocator.geocode(f"{rua.split(',')[0]}, {cid} - {uf_val}, Brasil", timeout=2)
                     if loc_fallback:
                         pos = [loc_fallback.latitude, loc_fallback.longitude]
-                        st.session_state.coords_sessao[chave_busca] = pos
             except:
                 pos = None
 
             if pos:
-                folium.Marker(location=pos, icon=folium.DivIcon(html=html_icone, icon_size=(diametro, diametro),
-                                                                icon_anchor=(raio_marcador, raio_marcador)),
-                              tooltip=texto_exibicao, popup=texto_exibicao).add_to(m)
+                st.session_state.coords_sessao[chave_busca] = pos
+                st.session_state.dados_agrupados_marcador.append({
+                    "pos": pos, "qtd": int(row.qtd), "cid": cid, "uf": uf_val, "rua": rua
+                })
 
             prog.progress((idx + 1) / len(pontos_para_buscar))
 
@@ -339,10 +316,7 @@ if st.session_state.df_final is not None:
         coordenadas_validas = list(st.session_state.coords_sessao.values())
         lats = [c[0] for c in coordenadas_validas]
         lngs = [c[1] for c in coordenadas_validas]
-        st.session_state.map_bounds = [[min(lats), min(lngs)], [max(lats), max(lngs)]]
-        m.fit_bounds(st.session_state.map_bounds)
 
-        # Atualiza center e zoom para a região dos chamados, evitando zoom no Brasil todo
         center_lat = (min(lats) + max(lats)) / 2
         center_lng = (min(lngs) + max(lngs)) / 2
         st.session_state.map_center = [center_lat, center_lng]
@@ -367,8 +341,29 @@ if st.session_state.df_final is not None:
         else:
             zoom_calc = 6
         st.session_state.map_zoom = zoom_calc
+        st.rerun()
 
-    st.session_state.mapa_pronto = m
+
+# --- CONSTRUTOR DINÂMICO DO MAPA ---
+def construir_mapa_geral():
+    m = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
+    for p in st.session_state.dados_agrupados_marcador:
+        raio_marcador = min(9 + (p["qtd"] * 0.2), 28)
+        diametro = int(raio_marcador * 2)
+        tamanho_fonte = max(8, min(12, int(raio_marcador * 0.65)))
+        texto_exibicao = f"<b>{p['cid']} - {p['uf']}</b><br><small>{p['rua']}</small><br>Chamados no local: {p['qtd']}"
+
+        html_icone = f"""<div style="background-color: #FF4B4B; color: white; border: 1px solid #1E1E1E; border-radius: 50%; width: {diametro}px; height: {diametro}px; display: flex; align-items: center; justify-content: center; font-size: {tamanho_fonte}px; font-weight: bold; box-shadow: 0px 0px 8px #FF4B4B;">{p['qtd']}</div>"""
+
+        folium.Marker(
+            location=p["pos"],
+            icon=folium.DivIcon(html=html_icone, icon_size=(diametro, diametro),
+                                icon_anchor=(raio_marcador, raio_marcador)),
+            tooltip=texto_exibicao,
+            popup=texto_exibicao
+        ).add_to(m)
+    return m
+
 
 # --- RENDERIZAÇÃO DA SIDEBAR CONDICIONAL ---
 if st.session_state.df_final is not None and CONSEGUI_VER_LISTA:
@@ -422,7 +417,7 @@ if st.session_state.df_final is not None and CONSEGUI_VER_LISTA:
             st.markdown('</div>', unsafe_allow_html=True)
 
 # --- ÁREA PRINCIPAL COM CONTROLE DE ABAS REMOTO ---
-if st.session_state.mapa_pronto:
+if st.session_state.df_final is not None and st.session_state.dados_agrupados_marcador:
     st.markdown('<div class="map-container">', unsafe_allow_html=True)
 
     lista_abas_nome = ["🗺️ Visão Geral"]
@@ -432,25 +427,46 @@ if st.session_state.mapa_pronto:
     abas_renderizadas = st.tabs(lista_abas_nome)
 
     with abas_renderizadas[0]:
+        # Aqui geramos o mapa em tempo de execução usando as coordenadas corretas do estado!
+        mapa_atualizado = construir_mapa_geral()
+
         saída_mapa_geral = st_folium(
-            st.session_state.mapa_pronto,
+            mapa_atualizado,
             width=1800,
             height=850,
             use_container_width=True,
             returned_objects=["last_object_clicked"],
             center=st.session_state.map_center,
             zoom=st.session_state.map_zoom,
-            key=f"mapa_geral_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}_bnd_{len(st.session_state.coords_sessao)}"
+            key=f"mapa_geral_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}"
         )
 
+        # --- LÓGICA DE APROXIMAÇÃO AO CLICAR NO MARCADOR DO MAPA ---
         if saída_mapa_geral and saída_mapa_geral.get("last_object_clicked"):
-            lat_clicada = saída_mapa_geral["last_object_clicked"]["lat"]
-            lng_clicada = saída_mapa_geral["last_object_clicked"]["lng"]
-            nova_posicao = [lat_clicada, lng_clicada]
-            if nova_posicao != st.session_state.map_center or st.session_state.map_zoom != 17:
-                st.session_state.map_center = nova_posicao
+            clique = saída_mapa_geral["last_object_clicked"]
+            lat_clicada = clique["lat"]
+            lng_clicada = clique["lng"]
+
+            distancia_lat = abs(lat_clicada - st.session_state.map_center[0])
+            distancia_lng = abs(lng_clicada - st.session_state.map_center[1])
+
+            # Se clicou num marcador diferente da posição atual ou se o zoom não está no máximo
+            if (distancia_lat > 0.0001 or distancia_lng > 0.0001) or st.session_state.map_zoom != 17:
+                st.session_state.map_center = [lat_clicada, lng_clicada]
                 st.session_state.map_zoom = 17
                 st.session_state.map_bounds = None
+
+                # Sincronização reversa para marcar o botão azul na lateral
+                for chave_busca, pos in st.session_state.coords_sessao.items():
+                    if abs(pos[0] - lat_clicada) < 0.001 and abs(pos[1] - lng_clicada) < 0.001:
+                        df_filtro = st.session_state.df_final
+                        for r in df_filtro.itertuples():
+                            busca_end = f"{str(r.Endereco).strip()}, {str(r.Cidade).strip()} - {str(r.SiglaUF).strip()}, Brasil".upper().strip()
+                            if busca_end == chave_busca:
+                                st.session_state.chamado_selecionado = str(r.CodOS)
+                                st.session_state.expander_aberto = True
+                                break
+                        break
                 st.rerun()
 
     if CONSEGUI_VER_ROTAS:
@@ -469,9 +485,15 @@ if st.session_state.mapa_pronto:
                 calcular = st.button("🚀 Calcular Rota", use_container_width=True)
 
             m_rota = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
-            for child in st.session_state.mapa_pronto._children.values():
-                if isinstance(child, folium.Marker):
-                    child.add_to(m_rota)
+            for p in st.session_state.dados_agrupados_marcador:
+                raio_marcador = min(9 + (p["qtd"] * 0.2), 28)
+                diametro = int(raio_marcador * 2)
+                tamanho_fonte = max(8, min(12, int(raio_marcador * 0.65)))
+                texto_exibicao = f"<b>{p['cid']} - {p['uf']}</b><br><small>{p['rua']}</small><br>Chamados no local: {p['qtd']}"
+                html_icone = f"""<div style="background-color: #FF4B4B; color: white; border: 1px solid #1E1E1E; border-radius: 50%; width: {diametro}px; height: {diametro}px; display: flex; align-items: center; justify-content: center; font-size: {tamanho_fonte}px; font-weight: bold; box-shadow: 0px 0px 8px #FF4B4B;">{p['qtd']}</div>"""
+                folium.Marker(location=p["pos"], icon=folium.DivIcon(html=html_icone, icon_size=(diametro, diametro),
+                                                                     icon_anchor=(raio_marcador, raio_marcador)),
+                              tooltip=texto_exibicao, popup=texto_exibicao).add_to(m_rota)
 
             if calcular:
                 lin_origem = df_rotas[df_rotas['Cidade_UF'] == origem].iloc[0]
@@ -486,32 +508,22 @@ if st.session_state.mapa_pronto:
 
                     st.write("### 🔄 Rota Dinâmica Ativada")
                     st.info(
-                        "💡 **Como usar:** Passe o mouse sobre a rota para ver o ponto de controle. Clique e arraste qualquer parte da linha azul para mudar o caminho, igual no Google Maps!")
+                        "💡 **Como usar:** Passe o mouse sobre a rota para ver o ponto de controle. Clique e arraste qualquer parte da linha azul para mudar o caminho!")
 
-                    # 1. Injeta os estilos e scripts essenciais do Leaflet Routing Machine no cabeçalho do mapa
-                    m_rota.get_root().header.add_child(
-                        folium.Element(
-                            '<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />')
-                    )
-                    m_rota.get_root().header.add_child(
-                        folium.Element(
-                            '<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>')
-                    )
+                    m_rota.get_root().header.add_child(folium.Element(
+                        '<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />'))
+                    m_rota.get_root().header.add_child(folium.Element(
+                        '<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>'))
 
-                    # 2. JavaScript com chaves duplicadas para escapar f-string e permitir o arrastar dinâmico
                     script_rota_arrastavel = f"""
                     <script>
                     (function() {{
                         function inicializarRota() {{
                             var mapInstance = null;
-
                             if (typeof L !== 'undefined' && L.Map && L.Map._maps) {{
                                 var mapas_ativos = Object.values(L.Map._maps);
-                                if (mapas_ativos.length > 0) {{
-                                    mapInstance = mapas_ativos[0];
-                                }}
+                                if (mapas_ativos.length > 0) {{ mapInstance = mapas_ativos[0]; }}
                             }}
-
                             if (!mapInstance && typeof L !== 'undefined') {{
                                 var layers = L.Map.prototype._layers;
                                 for (var id in layers) {{
@@ -521,9 +533,7 @@ if st.session_state.mapa_pronto:
                                     }}
                                 }}
                             }}
-
                             if (mapInstance) {{
-                                console.log("Mapa localizado com sucesso. Injetando a rota...");
                                 L.Routing.control({{
                                     waypoints: [
                                         L.latLng({ponto_A[0]}, {ponto_A[1]}),
@@ -531,35 +541,23 @@ if st.session_state.mapa_pronto:
                                     ],
                                     routeWhileDragging: true,
                                     showAlternatives: true,
-                                    altLineOptions: {{
-                                        styles: [
-                                            {{color: '#9400D3', opacity: 0.6, weight: 4}}
-                                        ]
-                                    }},
-                                    lineOptions: {{
-                                        styles: [{{color: '#007BFF', opacity: 0.85, weight: 6}}]
-                                    }},
+                                    altLineOptions: {{ styles: [[{{color: '#9400D3', opacity: 0.6, weight: 4}}]] }},
+                                    lineOptions: {{ styles: [{{color: '#007BFF', opacity: 0.85, weight: 6}}] }},
                                     createMarker: function(i, wp, nWps) {{
                                         var label = i === 0 ? "Início" : (i === nWps - 1 ? "Fim" : "Ponto de Desvio");
-                                        return L.marker(wp.latLng, {{
-                                            draggable: true
-                                        }}).bindPopup(label);
+                                        return L.marker(wp.latLng, {{ draggable: true }}).bindPopup(label);
                                     }}
                                 }}).addTo(mapInstance);
                             }} else {{
-                                console.log("Aguardando mapa renderizar...");
                                 setTimeout(inicializarRota, 300);
                             }}
                         }}
-
                         setTimeout(inicializarRota, 600);
                     }})();
                     </script>
                     """
-
                     m_rota.get_root().html.add_child(folium.Element(script_rota_arrastavel))
                     m_rota.fit_bounds([ponto_A, ponto_B])
-
                 else:
                     st.error("Coordenadas não encontradas no mapa atual.")
 
@@ -575,7 +573,11 @@ if st.session_state.mapa_pronto:
             if saída_mapa_rotas and saída_mapa_rotas.get("last_object_clicked"):
                 lat_clicada = saída_mapa_rotas["last_object_clicked"]["lat"]
                 lng_clicada = saída_mapa_rotas["last_object_clicked"]["lng"]
-                if [lat_clicada, lng_clicada] != st.session_state.map_center or st.session_state.map_zoom != 17:
+
+                dist_lat_r = abs(lat_clicada - st.session_state.map_center[0])
+                dist_lng_r = abs(lng_clicada - st.session_state.map_center[1])
+
+                if (dist_lat_r > 0.0001 or dist_lng_r > 0.0001) or st.session_state.map_zoom != 17:
                     st.session_state.map_center = [lat_clicada, lng_clicada]
                     st.session_state.map_zoom = 17
                     st.session_state.map_bounds = None
