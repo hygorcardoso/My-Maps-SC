@@ -26,7 +26,7 @@ CONSEGUI_VER_ROTAS = obter_config("HABILITAR_ABA_ROTAS", True)
 st.markdown(
     """
     <style>
-        .block-container { padding: 20px !important; max-width: 100% !important; }
+        .block-container { padding: 2rem !important; max-width: 100% !important; }
 
         .map-container { margin-left: 20px !important; margin-right: 20px !important; }
 
