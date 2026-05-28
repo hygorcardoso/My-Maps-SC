@@ -176,7 +176,7 @@ def mapear_coluna_flexivel(lista_colunas, alvos):
 
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
-    st.markdown('<div class="version-tag-sidebar">v0.3.0</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-tag-sidebar">v0.3.1</div>', unsafe_allow_html=True)
 
     st.title("📍 My Maps BR")
     st.caption("Modo de Geocodificação Nacional (Tempo Real)")
@@ -516,7 +516,6 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
             zoom=st.session_state.map_zoom,
             key=f"mapa_geral_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}"
         )
-        )v
 
         # --- LÓGICA DE APROXIMAÇÃO AO CLICAR NO MARCADOR DO MAPA ---
         if saída_mapa_geral and saída_mapa_geral.get("last_object_clicked"):
