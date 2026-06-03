@@ -1002,7 +1002,7 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
                 col_saida, col_destino, col_btn = st.columns([2, 2, 1.2])
                 with col_saida:
                     cidade_saida_input = st.text_input(
-                        "🏠 Cidade de Saída do Técnico",
+                        "🏠 Cidade de Saída do Técnico OBS: FUNÇÃO EM DESENVOLVIMENTO. PODE NÃO FUNCIONAR CORRETAMENTE.",
                         value=st.session_state.cidade_saida_tecnico,
                         placeholder="Ex: Videira - SC",
                         key="cidade_saida_tecnico_input"
