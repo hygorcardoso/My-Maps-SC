@@ -61,6 +61,18 @@ def obter_coordenadas_com_cache(endereco_completo, chave_busca, cliente, cidade,
     return None, None
 
 
+def _corrigir_coords_se_necessario(cidade, lat, lng):
+    """Corrige coordenadas de cidades conhecidas com geocodificação errada.
+    Se lat/lng forem None, retorna as coordenadas fixas se existirem, senão (None, None)."""
+    import unicodedata
+    cidade_norm = unicodedata.normalize('NFKD', str(cidade)).encode('ASCII', 'ignore').decode('ASCII').upper()
+    correcoes_norm = {unicodedata.normalize('NFKD', k).encode('ASCII', 'ignore').decode('ASCII').upper(): v
+                      for k, v in CORRECOES_COORDENADAS.items()}
+    if cidade_norm in correcoes_norm:
+        return correcoes_norm[cidade_norm]
+    return lat, lng
+
+
 def adicionar_ao_cache(chave_busca, cliente, cidade, uf, lat, lng):
     """Adiciona uma entrada ao cache de geocodificações."""
     cache = carregar_cache_geocodificacao()
@@ -74,8 +86,59 @@ def adicionar_ao_cache(chave_busca, cliente, cidade, uf, lat, lng):
     salvar_cache_geocodificacao(cache)
 
 
+# Coordenadas corretas para cidades que o Photon geocodifica errado
+CORRECOES_COORDENADAS = {
+    "SAO CRISTOVAO DO SUL": (-27.2666, -50.4388),
+    "SÃO CRISTÓVÃO DO SUL": (-27.2666, -50.4388),
+    "LUZERNA": (-27.1304, -51.4682),
+}
+
+# Carrega JSON local com todas as cidades de SC
+import unicodedata as _ud, os as _os
+
+_JSON_CIDADES_PATH = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "cidades.json")
+_CIDADES = {}
+try:
+    with open(_JSON_CIDADES_PATH, "r", encoding="utf-8") as _f:
+        _CIDADES = json.load(_f)
+except Exception:
+    _CIDADES = {}
+
+
+def _buscar_cidade_sc(cidade):
+    """Retorna (lat, lng) do JSON local se cidade de SC for encontrada, senão (None, None)."""
+    nome_norm = _ud.normalize('NFKD', str(cidade)).encode('ASCII', 'ignore').decode('ASCII').upper().strip()
+    entrada = _CIDADES.get(nome_norm)
+    if entrada:
+        return entrada["lat"], entrada["lng"]
+    return None, None
+
+
+def _normalizar(s):
+    import unicodedata
+    return unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('ASCII').upper()
+
+
+def aplicar_correcoes_cache():
+    """Garante que cidades com geocodificação errada sejam corrigidas no cache."""
+    cache = carregar_cache_geocodificacao()
+    alterado = False
+    correcoes_norm = {_normalizar(k): v for k, v in CORRECOES_COORDENADAS.items()}
+    for chave, entrada in cache.items():
+        cidade_norm = _normalizar(entrada.get("cidade", ""))
+        if cidade_norm in correcoes_norm:
+            lat_corr, lng_corr = correcoes_norm[cidade_norm]
+            if abs(entrada.get("lat", 0) - lat_corr) > 0.5:
+                entrada["lat"] = lat_corr
+                entrada["lng"] = lng_corr
+                alterado = True
+    if alterado:
+        salvar_cache_geocodificacao(cache)
+
+
 # 1. CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(page_title="My Maps BR", layout="wide")
+aplicar_correcoes_cache()
 
 # DICIONÁRIO GLOBAL DE CORES POR TIPO DE INTERVENÇÃO
 CORES_INTERVENCAO = {
@@ -433,10 +496,9 @@ def obter_cor_prioritaria(lista_intervencoes):
 
 # --- BARRA LATERAL (SIDEBAR) ---
 with st.sidebar:
-    st.markdown('<div class="version-tag-sidebar">v0.3.9</div>', unsafe_allow_html=True)
+    st.markdown('<div class="version-tag-sidebar">v0.4.1</div>', unsafe_allow_html=True)
 
     st.title("📍 My Maps BR")
-    st.caption("Modo de Geocodificação Nacional (Tempo Real)")
     st.markdown("---")
 
     arquivo = st.file_uploader("Upload da Planilha Excel", type=["xlsx"])
@@ -522,6 +584,42 @@ with st.sidebar:
                 st.selectbox("Filtrar por Cliente:", ["Nenhuma planilha carregada"], disabled=True, key="ds2")
                 st.selectbox("Filtrar por Região:", ["Nenhuma planilha carregada"], disabled=True, key="ds3")
                 st.caption("💡 Carregue uma planilha para liberar os filtros.")
+
+        # --- INFO DA ROTA NA SIDEBAR ---
+        if st.session_state.get('rota_info'):
+            st.markdown("---")
+            info = st.session_state.rota_info
+            origem_display = info.get("origem", "")
+            destino_display = info.get("destino", "")
+            rotas = info.get("rotas", [])
+
+            st.markdown("**🗺️ Última Rota Calculada**")
+
+            st.markdown(
+                f'<div style="background:#1E1E24;border:1px solid #3e404f;border-radius:8px;padding:12px;font-size:13px;color:#E0E0E0;">'
+                f'<div style="margin-bottom:4px;">🏠 <b>Saída:</b> {origem_display}</div>'
+                f'<div style="margin-bottom:10px;">🏁 <b>Destino:</b> {destino_display}</div>'
+                f'</div>',
+                unsafe_allow_html=True
+            )
+            for r in rotas:
+                label = r.get("label", "Rota")
+                cor_borda = "#007BFF" if "🔵" in label else ("#2E8B57" if "🟢" in label else "#555")
+                cor_bg = "#007BFF11" if "🔵" in label else ("#2E8B5711" if "🟢" in label else "#22222211")
+                dist = r.get("distancia_km", "—")
+                dur = r.get("duracao_str", "—")
+                st.markdown(
+                    f'<div style="background:{cor_bg};border:1px solid {cor_borda};border-radius:6px;padding:8px 10px;margin-top:6px;font-size:13px;color:#E0E0E0;">'
+                    f'<div style="font-weight:bold;margin-bottom:4px;">{label}</div>'
+                    f'<div>📍 <b>{dist} km</b> &nbsp; ⏱️ <b>{dur}</b></div>'
+                    f'</div>',
+                    unsafe_allow_html=True
+                )
+            if st.button("🗑️ Limpar Rota", use_container_width=True, key="btn_limpar_rota"):
+                st.session_state.rota_ponto_A = None
+                st.session_state.rota_ponto_B = None
+                st.session_state.rota_info = None
+                st.rerun()
 
         if is_novo_arquivo or st.session_state.df_final is None:
             df_aba = pd.read_excel(arquivo, sheet_name=aba_selecionada)
@@ -652,18 +750,39 @@ if st.session_state.df_final is not None and not st.session_state.dados_agrupado
             rua, cid, uf_val = str(row.Endereco).strip(), str(row.Cidade).strip(), str(row.SiglaUF).strip()
             status.text(f"🌐 Buscando locais: {cid}-{uf_val} ({idx + 1}/{len(pontos_para_buscar)})...")
             pos = None
-            try:
-                loc = geolocator.geocode(endereco_completo_busca, timeout=3)
-                if loc:
-                    pos = [loc.latitude, loc.longitude]
-                else:
-                    loc_fallback = geolocator.geocode(f"{rua.split(',')[0]}, {cid} - {uf_val}, Brasil", timeout=2)
-                    if loc_fallback: pos = [loc_fallback.latitude, loc_fallback.longitude]
-            except Exception as e:
-                print(f"[GEOCODE ERROR] {endereco_completo_busca}: {e}")
-                pos = None
+            # 1. Tenta JSON local de cidades de SC (sem API)
+            if uf_val.upper() == "SC":
+                lat_sc, lng_sc = _buscar_cidade_sc(cid)
+                if lat_sc is not None:
+                    pos = [lat_sc, lng_sc]
+
+            # 2. Fallback: correção manual conhecida
+            if not pos:
+                coords_fixas = _corrigir_coords_se_necessario(cid, None, None)
+                if coords_fixas[0] is not None:
+                    pos = list(coords_fixas)
+
+            # 3. Fallback: geocodificação via API (outros estados ou não encontrado no JSON)
+            if not pos:
+                try:
+                    loc = geolocator.geocode(endereco_completo_busca, timeout=3)
+                    if loc:
+                        pos = [loc.latitude, loc.longitude]
+                    else:
+                        loc_fallback = geolocator.geocode(f"{rua.split(',')[0]}, {cid} - {uf_val}, Brasil", timeout=2)
+                        if loc_fallback:
+                            pos = [loc_fallback.latitude, loc_fallback.longitude]
+                    if not pos:
+                        loc_cidade = geolocator.geocode(f"{cid}, {uf_val}, Brasil", timeout=3)
+                        if loc_cidade:
+                            pos = [loc_cidade.latitude, loc_cidade.longitude]
+                except Exception as e:
+                    print(f"[GEOCODE ERROR] {endereco_completo_busca}: {e}")
+                    pos = None
 
             if pos:
+                # Corrige cidades com geocodificação conhecidamente errada
+                pos[0], pos[1] = _corrigir_coords_se_necessario(cid, pos[0], pos[1])
                 st.session_state.coords_sessao[chave_busca] = pos
                 # Salvar no cache para próximas execuções
                 adicionar_ao_cache(chave_busca, cli_limpa, cid, uf_val, pos[0], pos[1])
@@ -718,11 +837,11 @@ def adicionar_marcadores_ao_mapa(m, df_agrupamento):
         cor = obter_cor_prioritaria(intervencoes)
 
         texto = f"""
-        <div style='font-family: Arial, sans-serif; min-width: 240px;'>
-            <span style='font-size: 14px; font-weight: bold; color: #FF4B4B;'>📍 {primeiro['cid']} - {primeiro['uf']}</span><br>
-            <small style='color: #666;'>{primeiro['rua']}</small><br>
-            <hr style='margin: 8px 0; border: 0; border-top: 1px solid #ddd;'>
-        """
+            <div style='font-family: Arial, sans-serif; min-width: 240px;'>
+                <span style='font-size: 14px; font-weight: bold; color: #FF4B4B;'>📍 {primeiro['cid']} - {primeiro['uf']}</span><br>
+                <small style='color: #666;'>{primeiro['rua']}</small><br>
+                <hr style='margin: 8px 0; border: 0; border-top: 1px solid #ddd;'>
+            """
         for chamado in group_local.itertuples():
             texto += f"<b>Intervenção:</b> {chamado.interv}<br>"
             texto += f"<b>Cliente:</b> {chamado.cli}<br><b>Nº Chamado:</b> {chamado.os}<br>"
@@ -874,14 +993,33 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
             if not lista_cidades_br:
                 st.warning("⚠️ Nenhuma cidade disponível para rotas com os filtros aplicados.")
             else:
-                col1, col2, col3 = st.columns([2, 2, 1.2])
-                with col1:
-                    origem = st.selectbox("📍 Cidade de Origem", lista_cidades_br, key="origem_rota")
-                with col2:
-                    destino = st.selectbox("🏁 Cidade de Destino", lista_cidades_br,
-                                           index=min(1, len(lista_cidades_br) - 1), key="destino_rota")
-                with col3:
+                # Inicializa estado da cidade de saída do técnico
+                if 'cidade_saida_tecnico' not in st.session_state:
+                    st.session_state.cidade_saida_tecnico = ""
+                if 'coords_saida_tecnico' not in st.session_state:
+                    st.session_state.coords_saida_tecnico = None
+
+                col_saida, col_destino, col_btn = st.columns([2, 2, 1.2])
+                with col_saida:
+                    cidade_saida_input = st.text_input(
+                        "🏠 Cidade de Saída do Técnico",
+                        value=st.session_state.cidade_saida_tecnico,
+                        placeholder="Ex: Videira - SC",
+                        key="cidade_saida_tecnico_input"
+                    )
+                with col_destino:
+                    destino = st.selectbox("🏁 Cidade de Destino (Chamado)", lista_cidades_br,
+                                           index=0, key="destino_rota")
+                with col_btn:
                     calcular = st.button("🚀 Calcular Rota", use_container_width=True)
+
+                # Inicializa estado dos pontos de rota
+                if 'rota_ponto_A' not in st.session_state:
+                    st.session_state.rota_ponto_A = None
+                if 'rota_ponto_B' not in st.session_state:
+                    st.session_state.rota_ponto_B = None
+                if 'rota_info' not in st.session_state:
+                    st.session_state.rota_info = None
 
                 m_rota = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
 
@@ -896,68 +1034,197 @@ if st.session_state.df_final is not None and st.session_state.dados_agrupados_ma
                 adicionar_marcadores_ao_mapa(m_rota, df_agrupamento_rota)
 
                 if calcular:
-                    lin_origem = df_rotas[df_rotas['Cidade_UF'] == origem].iloc[0]
+                    # --- GEOCODIFICAR CIDADE DE SAÍDA DO TÉCNICO ---
+                    cidade_saida_str = cidade_saida_input.strip()
+                    ponto_A = None
+
+                    if not cidade_saida_str:
+                        st.error("❌ Informe a cidade de saída do técnico antes de calcular a rota.")
+                    else:
+                        st.session_state.cidade_saida_tecnico = cidade_saida_str
+                        chave_saida = f"{cidade_saida_str}, Brasil".upper().strip()
+
+                        # Verificar cache ou coords_sessao primeiro
+                        if chave_saida in st.session_state.coords_sessao:
+                            ponto_A = st.session_state.coords_sessao[chave_saida]
+                        else:
+                            cache = carregar_cache_geocodificacao()
+                            if chave_saida in cache:
+                                entrada = cache[chave_saida]
+                                ponto_A = [entrada["lat"], entrada["lng"]]
+                                st.session_state.coords_sessao[chave_saida] = ponto_A
+                            else:
+                                # Geocodificar via API — cria instância local do geolocator
+                                with st.spinner(f"📡 Buscando coordenadas de '{cidade_saida_str}'..."):
+                                    cidade_apenas = cidade_saida_str.split("-")[0].split(",")[0].strip()
+                                    queries_saida = [cidade_apenas, f"{cidade_apenas} Brasil"]
+                                    loc_saida = None
+                                    ultimo_erro = None
+                                    try:
+                                        ctx_local = ssl.create_default_context(cafile=certifi.where())
+                                        geo_local = Photon(ssl_context=ctx_local, user_agent="mymaps_br_fast")
+                                        for q in queries_saida:
+                                            try:
+                                                loc_saida = geo_local.geocode(q, timeout=5)
+                                                if loc_saida:
+                                                    break
+                                            except Exception as e:
+                                                ultimo_erro = e
+                                                continue
+                                    except Exception as e:
+                                        ultimo_erro = e
+                                    if loc_saida:
+                                        ponto_A = [loc_saida.latitude, loc_saida.longitude]
+                                        st.session_state.coords_sessao[chave_saida] = ponto_A
+                                        cache[chave_saida] = {
+                                            "cliente": "TECNICO",
+                                            "cidade": cidade_saida_str.upper(),
+                                            "estado": "",
+                                            "lat": ponto_A[0],
+                                            "lng": ponto_A[1]
+                                        }
+                                        salvar_cache_geocodificacao(cache)
+                                    else:
+                                        detalhe = f": {ultimo_erro}" if ultimo_erro else ""
+                                        st.error(
+                                            f"❌ Não foi possível encontrar '{cidade_saida_str}'. Tente apenas o nome da cidade, ex: Videira{detalhe}")
+
+                    # --- OBTER COORDENADAS DO DESTINO (CHAMADO) ---
                     lin_destino = df_rotas[df_rotas['Cidade_UF'] == destino].iloc[0]
-                    key_origem = f"{str(lin_origem['Endereco']).strip()}, {str(lin_origem['Cidade']).strip()} - {str(lin_origem['SiglaUF']).strip()}, Brasil".upper().strip()
                     key_destino = f"{str(lin_destino['Endereco']).strip()}, {str(lin_destino['Cidade']).strip()} - {str(lin_destino['SiglaUF']).strip()}, Brasil".upper().strip()
 
-                    if key_origem in st.session_state.coords_sessao and key_destino in st.session_state.coords_sessao:
-                        ponto_A, ponto_B = st.session_state.coords_sessao[key_origem], st.session_state.coords_sessao[
-                            key_destino]
-                        st.write("### 🔄 Rota Dinâmica Ativada")
-                        st.info(
-                            "💡 **Como usar:** Passe o mouse sobre a rota para ver o ponto de controle. Clique e arraste qualquer parte da linha azul para mudar o caminho, igual no Google Maps!")
+                    if ponto_A is not None and key_destino in st.session_state.coords_sessao:
+                        ponto_B = st.session_state.coords_sessao[key_destino]
+                        st.session_state.rota_ponto_A = ponto_A
+                        st.session_state.rota_ponto_B = ponto_B
+                    elif ponto_A is not None and key_destino not in st.session_state.coords_sessao:
+                        st.error("❌ Coordenadas do destino não encontradas. Tente recarregar a planilha.")
 
-                        m_rota.get_root().header.add_child(folium.Element(
-                            '<link rel="stylesheet" href="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.css" />'))
-                        m_rota.get_root().header.add_child(folium.Element(
-                            '<script src="https://unpkg.com/leaflet-routing-machine@latest/dist/leaflet-routing-machine.js"></script>'))
+                # Aplica a rota no mapa sempre que os pontos estiverem salvos
+                if st.session_state.rota_ponto_A and st.session_state.rota_ponto_B:
+                    pA = st.session_state.rota_ponto_A
+                    pB = st.session_state.rota_ponto_B
 
-                        script_rota_arrastavel = f"""
-                        <script>
-                        (function() {{
-                            function inicializarRota() {{
-                                var mapInstance = null;
-                                if (typeof L !== 'undefined' && L.Map && L.Map._maps) {{
-                                    var mapas_ativos = Object.values(L.Map._maps);
-                                    if (mapas_ativos.length > 0) {{ mapInstance = mapas_ativos[0]; }}
-                                }}
-                                if (!mapInstance && typeof L !== 'undefined') {{
-                                    var layers = L.Map.prototype._layers;
-                                    for (var id in layers) {{
-                                        if (layers[id]._container && layers[id]._container.id) {{
-                                            mapInstance = layers[id];
-                                            break;
-                                        }}
-                                    }}
-                                }}
-                                if (mapInstance) {{
-                                    L.Routing.control({{
-                                        waypoints: [
-                                            L.latLng({ponto_A[0]}, {ponto_A[1]}),
-                                            L.latLng({ponto_B[0]}, {ponto_B[1]})
-                                        ],
-                                        routeWhileDragging: true,
-                                        showAlternatives: true,
-                                        altLineOptions: {{ styles: [[{{color: '#9400D3', opacity: 0.6, weight: 4}}]] }},
-                                        lineOptions: {{ styles: [{{color: '#007BFF', opacity: 0.85, weight: 6}}] }},
-                                        createMarker: function(i, wp, nWps) {{
-                                            var label = i === 0 ? "Início" : (i === nWps - 1 ? "Fim" : "Ponto de Desvio");
-                                            return L.marker(wp.latLng, {{ draggable: true }}).bindPopup(label);
-                                        }}
-                                    }}).addTo(mapInstance);
-                                }} else {{
-                                    setTimeout(inicializarRota, 300);
-                                }}
-                            }}
-                            setTimeout(inicializarRota, 600);
-                        }})();
-                        </script>
-                        """
-                        m_rota.get_root().html.add_child(folium.Element(script_rota_arrastavel))
-                        m_rota.fit_bounds([ponto_A, ponto_B])
-                    else:
-                        st.error("Coordenadas não encontradas no mapa atual.")
+                    import urllib.request, json as _json
+
+                    # API key ORS — lê do secrets se disponível, senão usa a padrão
+                    try:
+                        ORS_KEY = st.secrets.get("ORS_API_KEY",
+                                                 "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlNWFhOTZkNTQ5OTQ3M2I5ZTM3MTc0ZDc4OTdmZDcxIiwiaCI6Im11cm11cjY0In0=")
+                    except Exception:
+                        ORS_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlNWFhOTZkNTQ5OTQ3M2I5ZTM3MTc0ZDc4OTdmZDcxIiwiaCI6Im11cm11cjY0In0="
+
+
+                    def _buscar_rota_ors(lat1, lng1, lat2, lng2, avoid_unpaved=False):
+                        """Chama OpenRouteService e retorna (coords, dist_km, dur_str) ou None."""
+                        url = "https://api.openrouteservice.org/v2/directions/driving-car/geojson"
+                        body = {
+                            "coordinates": [[lng1, lat1], [lng2, lat2]],
+                            "instructions": False,
+                            "preference": "recommended"
+                        }
+                        if avoid_unpaved:
+                            body["options"] = {
+                                "avoid_features": ["unpavedroads", "ferries"]
+                            }
+                        payload = _json.dumps(body).encode("utf-8")
+                        req = urllib.request.Request(
+                            url,
+                            data=payload,
+                            headers={
+                                "Authorization": ORS_KEY,
+                                "Content-Type": "application/json",
+                                "Accept": "application/json"
+                            },
+                            method="POST"
+                        )
+                        with urllib.request.urlopen(req, timeout=10) as resp:
+                            dados = _json.loads(resp.read())
+                        feat = dados["features"][0]
+                        coords = [[c[1], c[0]] for c in feat["geometry"]["coordinates"]]
+                        props = feat["properties"]["summary"]
+                        dist_km = round(props["distance"] / 1000, 1)
+                        dur_min = round(props["duration"] / 60)
+                        h, m = divmod(dur_min, 60)
+                        dur_str = f"{h}h {m}min" if h else f"{m} min"
+                        return coords, dist_km, dur_str
+
+
+                    rota_info_nova = {
+                        "origem": st.session_state.cidade_saida_tecnico,
+                        "destino": destino,
+                        "rotas": []
+                    }
+
+                    # Rota 1: recomendada (ORS já prioriza asfalto por padrão)
+                    coords_1, dist_1, dur_1 = None, None, None
+                    try:
+                        coords_1, dist_1, dur_1 = _buscar_rota_ors(pA[0], pA[1], pB[0], pB[1], avoid_unpaved=False)
+                    except Exception as e_r1:
+                        coords_1 = None
+
+                    # Rota 2: explicitamente evitando estradas não asfaltadas e ferries
+                    coords_2, dist_2, dur_2 = None, None, None
+                    try:
+                        coords_2, dist_2, dur_2 = _buscar_rota_ors(pA[0], pA[1], pB[0], pB[1], avoid_unpaved=True)
+                    except Exception:
+                        coords_2 = None
+
+                    if coords_1:
+                        folium.PolyLine(
+                            coords_1, color="#007BFF", weight=6, opacity=0.9,
+                            tooltip=f"🔵 Rota mais rápida: {dist_1} km · {dur_1}"
+                        ).add_to(m_rota)
+                        rota_info_nova["rotas"].append({
+                            "label": "🔵 Rota mais rápida",
+                            "distancia_km": dist_1,
+                            "duracao_str": dur_1
+                        })
+
+                    # Só mostra rota asfaltada se for diferente da principal (>2 km)
+                    if coords_2 and (coords_1 is None or abs((dist_2 or 0) - (dist_1 or 0)) > 2):
+                        folium.PolyLine(
+                            coords_2, color="#2E8B57", weight=5, opacity=0.85,
+                            dash_array="6",
+                            tooltip=f"🟢 Rota asfaltada: {dist_2} km · {dur_2}"
+                        ).add_to(m_rota)
+                        rota_info_nova["rotas"].append({
+                            "label": "🟢 Rota asfaltada",
+                            "distancia_km": dist_2,
+                            "duracao_str": dur_2
+                        })
+
+                    if not coords_1 and not coords_2:
+                        # Fallback: linha reta
+                        folium.PolyLine(
+                            [pA, pB], color="#007BFF", weight=4, opacity=0.7,
+                            dash_array="8",
+                            tooltip="Rota aproximada (linha reta)"
+                        ).add_to(m_rota)
+                        rota_info_nova["fallback"] = True
+                        rota_info_nova["rotas"].append({
+                            "label": "⚠️ Linha reta (ORS indisponível)",
+                            "distancia_km": "—",
+                            "duracao_str": "—"
+                        })
+
+                    st.session_state.rota_info = rota_info_nova
+
+                    # Marcadores de início e fim
+                    folium.Marker(
+                        pA,
+                        popup="🏠 Saída do Técnico",
+                        tooltip="Saída do Técnico",
+                        icon=folium.Icon(color="green", icon="home", prefix="fa")
+                    ).add_to(m_rota)
+                    folium.Marker(
+                        pB,
+                        popup="🏁 Destino",
+                        tooltip="Destino",
+                        icon=folium.Icon(color="red", icon="flag", prefix="fa")
+                    ).add_to(m_rota)
+
+                    m_rota.fit_bounds([pA, pB], padding=(40, 40))
 
                 saída_mapa_rotas = st_folium(
                     m_rota, width=1800, height=700, use_container_width=True,

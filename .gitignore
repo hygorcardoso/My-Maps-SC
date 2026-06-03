@@ -7,7 +7,7 @@ env/
 
 # Streamlit e Mapas
 .streamlit/
-coords_cache.json
+cidades_sc.json
 
 # Dados (Proteção de privacidade)
 *.xlsx
