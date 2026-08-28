@@ -1,1252 +1,1425 @@
-import streamlit as st
-import pandas as pd
-import folium
-from streamlit_folium import st_folium
-from geopy.geocoders import Photon
-import ssl
-import certifi
-
-# --- CACHE DE GEOCODIFICAÇÕES ---
-import os
-import json
-from pathlib import Path
-
-CACHE_FILE = Path.home() / ".streamlit" / "geocodificacao_cache.json"
-
-
-def carregar_cache_geocodificacao():
-    """Carrega o cache de coordenadas do arquivo JSON."""
-    if CACHE_FILE.exists():
-        try:
-            with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except (json.JSONDecodeError, IOError):
-            return {}
-    return {}
-
-
-def salvar_cache_geocodificacao(cache):
-    """Salva o cache atualizado no arquivo JSON."""
-    CACHE_FILE.parent.mkdir(parents=True, exist_ok=True)
-    try:
-        with open(CACHE_FILE, "w", encoding="utf-8") as f:
-            json.dump(cache, f, ensure_ascii=False, indent=2)
-    except IOError as e:
-        print(f"[CACHE WARNING] Não foi possível salvar cache: {e}")
-
-
-def obter_coordenadas_com_cache(endereco_completo, chave_busca, cliente, cidade, uf):
-    """
-    Busca coordenadas: primeiro no cache, depois na API.
-    Atualiza o cache se encontrado na API.
-
-    Args:
-        endereco_completo: endereço formatado para busca (ex: "Rua X, Cidade - UF, Brasil")
-        chave_busca: chave em caixa alta (ex: "RUA X, CIDADE - UF, BRASIL")
-        cliente: nome do cliente
-        cidade: nome da cidade
-        uf: sigla do estado
-
-    Returns:
-        tuple: (lat, lng) ou (None, None) se não encontrado
-    """
-    cache = carregar_cache_geocodificacao()
-
-    # Buscar no cache
-    if chave_busca in cache:
-        entrada = cache[chave_busca]
-        return (entrada["lat"], entrada["lng"])
-
-    # Se não estiver no cache, retorna None para buscar na API depois
-    return None, None
-
-
-def _corrigir_coords_se_necessario(cidade, lat, lng):
-    """Corrige coordenadas de cidades conhecidas com geocodificação errada.
-    Se lat/lng forem None, retorna as coordenadas fixas se existirem, senão (None, None)."""
-    import unicodedata
-    cidade_norm = unicodedata.normalize('NFKD', str(cidade)).encode('ASCII', 'ignore').decode('ASCII').upper()
-    correcoes_norm = {unicodedata.normalize('NFKD', k).encode('ASCII', 'ignore').decode('ASCII').upper(): v
-                      for k, v in CORRECOES_COORDENADAS.items()}
-    if cidade_norm in correcoes_norm:
-        return correcoes_norm[cidade_norm]
-    return lat, lng
-
-
-def adicionar_ao_cache(chave_busca, cliente, cidade, uf, lat, lng):
-    """Adiciona uma entrada ao cache de geocodificações."""
-    cache = carregar_cache_geocodificacao()
-    cache[chave_busca] = {
-        "cliente": cliente.upper(),
-        "cidade": cidade.upper(),
-        "estado": uf.upper(),
-        "lat": lat,
-        "lng": lng
-    }
-    salvar_cache_geocodificacao(cache)
-
-
-# Coordenadas corretas para cidades que o Photon geocodifica errado
-CORRECOES_COORDENADAS = {
-    "SAO CRISTOVAO DO SUL": (-27.2666, -50.4388),
-    "SÃO CRISTÓVÃO DO SUL": (-27.2666, -50.4388),
-    "LUZERNA": (-27.1304, -51.4682),
-}
-
-# Carrega JSON local com todas as cidades de SC
-import unicodedata as _ud, os as _os
-
-_JSON_CIDADES_PATH = _os.path.join(_os.path.dirname(_os.path.abspath(__file__)), "cidades.json")
-_CIDADES = {}
-try:
-    with open(_JSON_CIDADES_PATH, "r", encoding="utf-8") as _f:
-        _CIDADES = json.load(_f)
-except Exception:
-    _CIDADES = {}
-
-
-def _buscar_cidade_sc(cidade):
-    """Retorna (lat, lng) do JSON local se cidade de SC for encontrada, senão (None, None)."""
-    nome_norm = _ud.normalize('NFKD', str(cidade)).encode('ASCII', 'ignore').decode('ASCII').upper().strip()
-    entrada = _CIDADES.get(nome_norm)
-    if entrada:
-        return entrada["lat"], entrada["lng"]
-    return None, None
-
-
-def _normalizar(s):
-    import unicodedata
-    return unicodedata.normalize('NFKD', s).encode('ASCII', 'ignore').decode('ASCII').upper()
-
-
-def aplicar_correcoes_cache():
-    """Garante que cidades com geocodificação errada sejam corrigidas no cache."""
-    cache = carregar_cache_geocodificacao()
-    alterado = False
-    correcoes_norm = {_normalizar(k): v for k, v in CORRECOES_COORDENADAS.items()}
-    for chave, entrada in cache.items():
-        cidade_norm = _normalizar(entrada.get("cidade", ""))
-        if cidade_norm in correcoes_norm:
-            lat_corr, lng_corr = correcoes_norm[cidade_norm]
-            if abs(entrada.get("lat", 0) - lat_corr) > 0.5:
-                entrada["lat"] = lat_corr
-                entrada["lng"] = lng_corr
-                alterado = True
-    if alterado:
-        salvar_cache_geocodificacao(cache)
-
-
-# 1. CONFIGURAÇÃO DA PÁGINA
-st.set_page_config(page_title="My Maps BR", layout="wide")
-aplicar_correcoes_cache()
-
-# DICIONÁRIO GLOBAL DE CORES POR TIPO DE INTERVENÇÃO
-CORES_INTERVENCAO = {
-    "Alteração de engenharia": "#4B0082",  # Indigo
-    "Autorização de deslocamento": "#4682B4",  # SteelBlue
-    "Cofre": "#708090",  # SlateGray
-    "Corretiva": "#FF4B4B",  # Vermelho
-    "Corretiva POS reincidentes": "#B22222",  # FireBrick
-    "Desinstalação": "#FF8C00",  # DarkOrange
-    "Helpdesk": "#008B8B",  # DarkCyan
-    "Inspeção técnica": "#9ACD32",  # YellowGreen
-    "Instalação": "#2E8B57",  # SeaGreen
-    "Laudo técnico": "#8B008B",  # DarkMagenta
-    "Manutenção gerencial": "#5F9EA0",  # CadetBlue
-    "Orçamento": "#FFD700",  # Gold
-    "Orçamento aprovado": "#32CD32",  # LimeGreen
-    "Orçamento pendente da filial detalhar motivo": "#FFA500",  # Orange
-    "Orçamento pendente de aprovação do cliente": "#DAA520",  # GoldenRod
-    "Orçamento reprovado": "#8B0000",  # DarkRed
-    "Preventiva": "#007BFF",  # Azul
-    "Preventiva gerencial": "#1E90FF",  # DodgerBlue
-    "Reinstalação": "#20B2AA",  # LightSeaGreen
-    "Treinamento": "#9370DB",  # MediumPurple
-    "Troca de Veloh C": "#8B4513",  # SaddleBrown
-    "Não Informado": "#464855"  # Cinza
-}
-
-
-# --- FUNÇÃO AUXILIAR DE CONFIGURAÇÃO SEGURA ---
-def obter_config(chave, valor_padrao=True):
-    try:
-        return st.secrets.get(chave, valor_padrao)
-    except:
-        return valor_padrao
-
-
-# Lendo as permissões do arquivo secreto
-CONSEGUI_VER_LISTA = obter_config("HABILITAR_LISTA_CHAMADOS", True)
-CONSEGUI_VER_ROTAS = obter_config("HABILITAR_ABA_ROTAS", True)
-
-# 2. CSS GLOBAL
-st.markdown(
-    """
-    <style>
-        .block-container { padding-top: 1rem !important; padding-left: 0rem !important; padding-right: 0rem 
-        !important; padding-bottom: 0rem !important; max-width: 100% !important; }
-
-        /* --- CONTROLE DO CABEÇALHO SUPERIOR --- */
-        button[data-testid="stHeaderShareButton"],
-        a[data-testid="stHeaderGithubLink"],
-        button[data-testid="stHeaderStarButton"] {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        ul[data-testid="main-menu-list"] li:not(:nth-child(3)):not(:nth-child(4)) {
-            display: none !important;
-            visibility: hidden !important;
-        }
-
-        .map-container { margin-left: 20px !important; margin-right: 20px !important; }
-
-        .lista-chamados-container {
-            max-height: 4000px;
-            overflow-y: auto;
-            background-color: #262730;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid #464855;
-        }
-
-        /* --- SELETORES GERAIS PARA BOTÕES DE FLUXO/FORMULÁRIO --- */
-        div[data-testid="stButton"] button,
-        div[data-testid="stSidebar"] button[disabled="false"],
-        div[data-testid="stHorizontalBlock"] button,
-        .lista-chamados-container button {
-            min-height: 55px !important;
-            height: 55px !important;
-            line-height: 35px !important;
-            font-size: 15px !important;
-            font-weight: bold !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            border-radius: 8px !important;
-            width: 100% !important;
-            box-sizing: border-box !important;
-            padding: 10px 15px !important;
-        }
-
-        /* BOTÕES DA LISTA DE CHAMADOS SE AJUSTAREM AO TEXTO */
-        .lista-chamados-container button {
-            min-height: 45px !important;
-            height: auto !important;
-            line-height: 1.4 !important;
-            font-size: 13px !important;
-            font-weight: bold !important;
-            display: block !important;
-            text-align: left !important;
-            font-family: monospace !important;
-            margin-bottom: 8px !important;
-            width: 100% !important;
-            box-sizing: border-box !important;
-            padding: 12px 14px !important;
-            white-space: normal !important;
-            word-wrap: break-word !important;
-        }
-
-        /* Alinhamento do bloco horizontal do botão calcular rota e formulários */
-        div[data-testid="stHorizontalBlock"] div[data-testid="element-container"] {
-            padding-top: 10px !important;
-        }
-
-        div[data-testid="stHorizontalBlock"] button,
-        div[data-testid="stForm"] button {
-            background-color: #007BFF !important;
-            color: white !important;
-            border: none !important;
-            justify-content: center !important;
-            box-shadow: 0px 4px 12px rgba(0, 123, 255, 0.3) !important;
-        }
-
-        div[data-testid="stHorizontalBlock"] button:hover,
-        div[data-testid="stForm"] button:hover {
-            background-color: #0056b3 !important;
-            box-shadow: 0px 6px 16px rgba(0, 123, 255, 0.5) !important;
-        }
-
-        /* --- ABAS DE NAVEGAÇÃO SUPERIOR --- */
-        div[data-testid="stTabs"] {
-            background-color: #1E1E24 !important;
-            padding: 6px 8px !important;
-            border-radius: 8px !important;
-            border: 1px solid #3e404f !important;
-            margin-bottom: 20px !important;
-            margin-left: 20px !important;
-            margin-right: 20px !important;
-            margin-top: 10px !important;
-            overflow: visible !important;
-        }
-
-        div[data-testid="stTabs"] div[role="tablist"] {
-            border-bottom: none !important;
-            gap: 6px !important;
-            min-height: 36px !important;
-            height: auto !important;
-            display: flex !important;
-            align-items: center !important;
-            flex-wrap: nowrap !important;
-            overflow: visible !important;
-        }
-
-        div[data-testid="stTabs"] div[role="tablist"] button[data-baseweb="tab"] {
-            min-height: 36px !important;
-            height: 36px !important;
-            width: auto !important;
-            min-width: 100px !important;
-            background-color: transparent !important;
-            border: none !important;
-            color: #E0E0E0 !important;
-            font-size: 13px !important;
-            font-weight: bold !important;
-            padding: 0px 20px !important;
-            border-radius: 6px !important;
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            line-height: normal !important;
-            margin: 0 !important;
-            overflow: visible !important;
-            white-space: nowrap !important;
-        }
-
-        /* Aba Ativa (Selecionada) */
-        div[data-testid="stTabs"] div[role="tablist"] button[data-baseweb="tab"][aria-selected="true"] {
-            background-color: #007BFF !important;
-            color: #FFFFFF !important;
-            box-shadow: 0px 2px 8px rgba(0, 123, 255, 0.3) !important;
-        }
-
-        /* Hover nas Abas */
-        div[data-testid="stTabs"] div[role="tablist"] button[data-baseweb="tab"]:hover {
-            color: #FFFFFF !important;
-            background-color: rgba(255, 255, 255, 0.05) !important;
-        }
-
-        div[data-testid="stTabs"] button[data-baseweb="tab"] div,
-        div[data-testid="stTabs"] button[data-baseweb="tab"] p,
-        div[data-testid="stTabs"] button[data-baseweb="tab"] span {
-            display: inline-flex !important;
-            align-items: center !important;
-            justify-content: center !important;
-            line-height: normal !important;
-            height: auto !important;
-            overflow: visible !important;
-            white-space: nowrap !important;
-        }
-
-        div[data-testid="stTabs"] [data-baseweb="tab-border"],
-        div[data-testid="stTabs"] [class*="StyledTabBorder"],
-        div[data-testid="stTabs"] [class*="StyledTabHighlight"] {
-            display: none !important;
-            height: 0px !important;
-        }
-
-        /* --- SIDEBAR CONFIGS --- */
-        section[data-testid="stSidebar"] [data-testid="stSidebarUserContent"] {
-            position: relative !important;
-            min-height: calc(100vh - 20px) !important;
-            display: flex !important;
-            flex-direction: column !important;
-        }
-
-        .version-tag-sidebar {
-            position: absolute !important;
-            bottom: 10px !important;
-            right: auto !important;
-            left: auto !important;
-            top: auto !important;
-            z-index: 1000 !important;
-            color: #888c99 !important;
-            font-family: monospace !important;
-            font-size: 12px !important;
-            font-weight: bold !important;
-            background-color: rgba(38, 39, 48, 0.95) !important;
-            padding: 4px 10px !important;
-            border-radius: 5px !important;
-            border: 1px solid #464855 !important;
-            pointer-events: none !important;
-            box-shadow: 0px 2px 8px rgba(0,0,0,0.5) !important;
-        }
-
-        div[data-testid="stForm"] {
-            border: none !important;
-            padding: 0rem !important;
-        }
-
-        /* --- ESTILO DA LEGENDA DE CORES --- */
-        .legenda-container {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 12px;
-            background-color: #1E1E24;
-            padding: 15px;
-            border-radius: 8px;
-            border: 1px solid #3e404f;
-            margin-top: 15px;
-        }
-
-        .legenda-item {
-            display: inline-flex;
-            align-items: center;
-            gap: 6px;
-            font-size: 12px;
-            font-weight: 500;
-            color: #E0E0E0;
-            font-family: sans-serif;
-        }
-
-        .legenda-cor {
-            width: 14px;
-            height: 14px;
-            border-radius: 50%;
-            border: 1px solid #1E1E1E;
-            flex-shrink: 0;
-        }
-    </style>
-    """,
-    unsafe_allow_html=True
-)
-
-# Inicializa estados globais padrão
-if 'df_final' not in st.session_state: st.session_state.df_final = None
-if 'chamado_selecionado' not in st.session_state: st.session_state.chamado_selecionado = None
-if 'map_center' not in st.session_state: st.session_state.map_center = [-14.2350, -51.9253]
-if 'map_zoom' not in st.session_state: st.session_state.map_zoom = 4
-if 'ultimo_arquivo' not in st.session_state: st.session_state.ultimo_arquivo = None
-if 'expander_aberto' not in st.session_state: st.session_state.expander_aberto = False
-if 'coords_sessao' not in st.session_state: st.session_state.coords_sessao = {}
-if 'dados_agrupados_marcador' not in st.session_state: st.session_state.dados_agrupados_marcador = []
-
-# Retenção do formulário
-if 'f_interv' not in st.session_state: st.session_state.f_interv = "Todos"
-if 'f_clie' not in st.session_state: st.session_state.f_clie = "Todos"
-if 'f_regi' not in st.session_state: st.session_state.f_regi = "Todos"
-
-
-def mapear_coluna_flexivel(lista_colunas, alvos):
-    for col in lista_colunas:
-        if str(col).strip().upper() in [t.upper() for t in alvos]:
-            return col
-    for col in lista_colunas:
-        for t in alvos:
-            if t.lower() in str(col).strip().lower():
-                return col
-    return None
-
-
-# --- FUNÇÃO PARA GERAR O BLOCO HTML DA LEGENDA DINAMICAMENTE COM FILTROS ---
-def renderizar_legenda_dinamica_html(df_filtrado):
-    if df_filtrado is None or df_filtrado.empty:
-        return ""
-
-    intervencoes_ativas = set(df_filtrado["Intervencao"].dropna().astype(str).unique().tolist())
-
-    itens = []
-    for nome_tipo, cor_hex in CORES_INTERVENCAO.items():
-        if nome_tipo in intervencoes_ativas and nome_tipo != "Não Informado":
-            itens.append(
-                f'<div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;'
-                f'font-weight:500;color:#E0E0E0;font-family:sans-serif;">'
-                f'<div style="width:14px;height:14px;border-radius:50%;border:1px solid #1E1E1E;'
-                f'flex-shrink:0;background-color:{cor_hex};box-shadow:0px 0px 4px {cor_hex};"></div>'
-                f'<span>{nome_tipo}</span>'
-                f'</div>'
-            )
-
-    if not itens:
-        return ""
-
-    container = (
-            '<div style="display:flex;flex-wrap:wrap;gap:12px;background-color:#1E1E24;'
-            'padding:15px;border-radius:8px;border:1px solid #3e404f;margin-top:15px;">'
-            + "".join(itens)
-            + "</div>"
-    )
-    return container
-
-
-# --- FUNÇÃO PARA DEFINIR A COR PRIORITÁRIA DE UM AGRUPAMENTO ---
-def obter_cor_prioritaria(lista_intervencoes):
-    interv_set = {str(i).strip() for i in lista_intervencoes}
-
-    if "Corretiva" in interv_set: return CORES_INTERVENCAO["Corretiva"]
-    if "Corretiva POS reincidentes" in interv_set: return CORES_INTERVENCAO["Corretiva POS reincidentes"]
-
-    if "Preventiva" in interv_set: return CORES_INTERVENCAO["Preventiva"]
-    if "Preventiva gerencial" in interv_set: return CORES_INTERVENCAO["Preventiva gerencial"]
-
-    PRIORITY_ORCAMENTO = [
-        "Orçamento aprovado",
-        "Orçamento pendente de aprovação do cliente",
-        "Orçamento pendente da filial detalhar motivo",
-        "Orçamento reprovado",
-        "Orçamento",
-    ]
-    for key in PRIORITY_ORCAMENTO:
-        if key in interv_set:
-            return CORES_INTERVENCAO.get(key, "#FFD700")
-
-    if "Instalação" in interv_set: return CORES_INTERVENCAO["Instalação"]
-    if "Reinstalação" in interv_set: return CORES_INTERVENCAO["Reinstalação"]
-
-    return CORES_INTERVENCAO.get(list(interv_set)[0], "#FF4B4B")
-
-
-# --- BARRA LATERAL (SIDEBAR) ---
-with st.sidebar:
-    st.markdown('<div class="version-tag-sidebar">v0.4.1</div>', unsafe_allow_html=True)
-
-    st.title("📍 My Maps BR")
-    st.markdown("---")
-
-    arquivo = st.file_uploader("Upload da Planilha Excel", type=["xlsx"])
-
-    # Lógica de detecção do "X" (Remover arquivo) ou Novo arquivo
-    if arquivo is None and st.session_state.ultimo_arquivo is not None:
-        st.session_state.df_final = None
-        st.session_state.chamado_selecionado = None
-        st.session_state.dados_agrupados_marcador = []
-        st.session_state.coords_sessao = {}
-        st.session_state.ultimo_arquivo = None
-        st.session_state.f_interv, st.session_state.f_clie, st.session_state.f_regi = "Todos", "Todos", "Todos"
-        st.session_state.map_center = [-14.2350, -51.9253]
-        st.session_state.map_zoom = 4
-        st.rerun()
-
-    if arquivo:
-        is_novo_arquivo = (st.session_state.ultimo_arquivo != arquivo.name)
-
-        if is_novo_arquivo:
-            st.session_state.dados_agrupados_marcador = []
-            st.session_state.coords_sessao = {}
-            st.session_state.chamado_selecionado = None
-            st.session_state.f_interv, st.session_state.f_clie, st.session_state.f_regi = "Todos", "Todos", "Todos"
-
-        xl = pd.ExcelFile(arquivo)
-        abas_disponiveis = xl.sheet_names
-
-        aba_alvo = None
-        for prioridade in ["unificado", "rat's", "rats", "chamados"]:
-            for name in abas_disponiveis:
-                if name.strip().lower() == prioridade:
-                    aba_alvo = name
-                    break
-            if aba_alvo:
-                break
-
-        if aba_alvo:
-            st.caption(f"📖 Aba carregada: **{aba_alvo}**")
-            aba_selecionada = aba_alvo
-        else:
-            st.warning("⚠️ Aba padrão não encontrada.")
-            aba_selecionada = st.selectbox("Selecione a aba manualmente", abas_disponiveis)
-
-        # --- FORMULÁRIO DE FILTROS ---
-        st.markdown("---")
-        with st.expander("⏳ Filtros", expanded=False):
-            if st.session_state.df_final is not None:
-                with st.form("form_filtros_sidebar"):
-                    op_interv = ["Todos"] + sorted(
-                        st.session_state.df_final['Intervencao'].dropna().astype(str).unique().tolist())
-                    idx_interv = op_interv.index(
-                        st.session_state.f_interv) if st.session_state.f_interv in op_interv else 0
-                    intervencao_sel = st.selectbox("Filtrar por Intervenção:", op_interv, index=idx_interv)
-
-                    op_clie = ["Todos"] + sorted(
-                        st.session_state.df_final['Cliente'].dropna().astype(str).unique().tolist())
-                    idx_clie = op_clie.index(st.session_state.f_clie) if st.session_state.f_clie in op_clie else 0
-                    cliente_sel = st.selectbox("Filtrar por Cliente:", op_clie, index=idx_clie)
-
-                    op_regi = ["Todos"] + sorted(
-                        st.session_state.df_final['Regiao'].dropna().astype(str).unique().tolist())
-                    idx_regi = op_regi.index(st.session_state.f_regi) if st.session_state.f_regi in op_regi else 0
-                    regiao_sel = st.selectbox("Filtrar por Região:", op_regi, index=idx_regi)
-
-                    col_aplicar, col_limpar = st.columns(2)
-                    with col_aplicar:
-                        submeteu = st.form_submit_button("⚡ Aplicar Filtros", use_container_width=True)
-                    with col_limpar:
-                        limpar = st.form_submit_button("🧹 Limpar Filtros", use_container_width=True)
-                    if submeteu:
-                        st.session_state.f_interv = intervencao_sel
-                        st.session_state.f_clie = cliente_sel
-                        st.session_state.f_regi = regiao_sel
-                        st.rerun()
-                    if limpar:
-                        st.session_state.f_interv = "Todos"
-                        st.session_state.f_clie = "Todos"
-                        st.session_state.f_regi = "Todos"
-                        st.rerun()
-            else:
-                st.selectbox("Filtrar por Intervenção:", ["Nenhuma planilha carregada"], disabled=True, key="ds1")
-                st.selectbox("Filtrar por Cliente:", ["Nenhuma planilha carregada"], disabled=True, key="ds2")
-                st.selectbox("Filtrar por Região:", ["Nenhuma planilha carregada"], disabled=True, key="ds3")
-                st.caption("💡 Carregue uma planilha para liberar os filtros.")
-
-        # --- INFO DA ROTA NA SIDEBAR ---
-        if st.session_state.get('rota_info'):
-            st.markdown("---")
-            info = st.session_state.rota_info
-            origem_display = info.get("origem", "")
-            destino_display = info.get("destino", "")
-            rotas = info.get("rotas", [])
-
-            st.markdown("**🗺️ Última Rota Calculada**")
-
-            st.markdown(
-                f'<div style="background:#1E1E24;border:1px solid #3e404f;border-radius:8px;padding:12px;font-size:13px;color:#E0E0E0;">'
-                f'<div style="margin-bottom:4px;">🏠 <b>Saída:</b> {origem_display}</div>'
-                f'<div style="margin-bottom:10px;">🏁 <b>Destino:</b> {destino_display}</div>'
-                f'</div>',
-                unsafe_allow_html=True
-            )
-            for r in rotas:
-                label = r.get("label", "Rota")
-                cor_borda = "#007BFF" if "🔵" in label else ("#2E8B57" if "🟢" in label else "#555")
-                cor_bg = "#007BFF11" if "🔵" in label else ("#2E8B5711" if "🟢" in label else "#22222211")
-                dist = r.get("distancia_km", "—")
-                dur = r.get("duracao_str", "—")
-                st.markdown(
-                    f'<div style="background:{cor_bg};border:1px solid {cor_borda};border-radius:6px;padding:8px 10px;margin-top:6px;font-size:13px;color:#E0E0E0;">'
-                    f'<div style="font-weight:bold;margin-bottom:4px;">{label}</div>'
-                    f'<div>📍 <b>{dist} km</b> &nbsp; ⏱️ <b>{dur}</b></div>'
-                    f'</div>',
-                    unsafe_allow_html=True
-                )
-            if st.button("🗑️ Limpar Rota", use_container_width=True, key="btn_limpar_rota"):
-                st.session_state.rota_ponto_A = None
-                st.session_state.rota_ponto_B = None
-                st.session_state.rota_info = None
-                st.rerun()
-
-        if is_novo_arquivo or st.session_state.df_final is None:
-            df_aba = pd.read_excel(arquivo, sheet_name=aba_selecionada)
-
-            col_os = mapear_coluna_flexivel(df_aba.columns.tolist(), ["CodOS", "Chamado", "ID", "Ticket"])
-            col_cidade = mapear_coluna_flexivel(df_aba.columns.tolist(), ["Cidade", "Municipio", "Cid"])
-            col_uf = mapear_coluna_flexivel(df_aba.columns.tolist(), ["SiglaUF", "UF", "Estado"])
-            col_rua = mapear_coluna_flexivel(df_aba.columns.tolist(), ["Endereco", "Endereço", "Logradouro", "Rua"])
-            col_intervencao = mapear_coluna_flexivel(df_aba.columns.tolist(), ["Intervencao", "Intervenção", "Tipo"])
-            col_cliente = mapear_coluna_flexivel(df_aba.columns.tolist(),
-                                                 ["Cliente", "NomeCliente", "RazaoSocial", "Aba Cliente", "Empresa"])
-            col_regiao = mapear_coluna_flexivel(df_aba.columns.tolist(),
-                                                ["Regiao", "Região", "Distrito", "Area", "Zona"])
-            col_sla = mapear_coluna_flexivel(df_aba.columns.tolist(),
-                                             ["LimiteAtendimento", "LimiteAtend", "Limite Atendimento", "SLA", "Prazo"])
-
-            if col_os and col_cidade and col_uf and col_rua:
-                colunas_para_copiar = [col_os, col_cidade, col_uf, col_rua]
-                if col_intervencao: colunas_para_copiar.append(col_intervencao)
-                if col_cliente: colunas_para_copiar.append(col_cliente)
-                if col_regiao: colunas_para_copiar.append(col_regiao)
-                if col_sla: colunas_para_copiar.append(col_sla)
-
-                df_limpo = df_aba[colunas_para_copiar].dropna(subset=[col_os, col_rua])
-
-                nomes_colunas = {col_os: 'CodOS', col_cidade: 'Cidade', col_uf: 'SiglaUF', col_rua: 'Endereco'}
-                if col_intervencao: nomes_colunas[col_intervencao] = 'Intervencao'
-                if col_cliente: nomes_colunas[col_cliente] = 'Cliente'
-                if col_regiao: nomes_colunas[col_regiao] = 'Regiao'
-                if col_sla: nomes_colunas[col_sla] = 'SLA'
-
-                df_limpo = df_limpo.rename(columns=nomes_colunas)
-
-                if 'Intervencao' not in df_limpo.columns: df_limpo['Intervencao'] = "Não Informado"
-                if 'Cliente' not in df_limpo.columns: df_limpo['Cliente'] = "Não Informado"
-                if 'Regiao' not in df_limpo.columns: df_limpo['Regiao'] = "Não Informado"
-                if 'SLA' not in df_limpo.columns: df_limpo['SLA'] = ""
-
-                df_limpo['CodOS'] = df_limpo['CodOS'].astype(str).str.split('.').str[0].str.strip()
-                df_limpo = df_limpo.drop_duplicates(subset=['CodOS'], keep='first')
-
-                st.session_state.df_final = df_limpo
-                st.session_state.ultimo_arquivo = arquivo.name
-                st.session_state.chamado_selecionado = None
-
-                st.session_state.expander_aberto = False
-                st.session_state.coords_sessao = {}
-                st.session_state.dados_agrupados_marcador = []
-                st.session_state.f_interv, st.session_state.f_clie, st.session_state.f_regi = "Todos", "Todos", "Todos"
-
-                st.session_state.map_center = [-14.2350, -51.9253]
-                st.session_state.map_zoom = 4
-                st.rerun()
-            else:
-                st.error("❌ Não foi possível encontrar todas as colunas obrigatórias nesta aba.")
-
-# --- PROCESSAMENTO E GEOLOCALIZAÇÃO ---
-if st.session_state.df_final is not None and not st.session_state.dados_agrupados_marcador:
-    df = st.session_state.df_final
-    dados_mapa = df.dropna(subset=['Endereco', 'Cidade', 'SiglaUF'])
-    grupo_pontos = dados_mapa.groupby(
-        ['Endereco', 'Cidade', 'SiglaUF', 'Intervencao', 'Cliente', 'Regiao', 'CodOS', 'SLA']).size().reset_index(
-        name='qtd')
-
-    ctx = ssl.create_default_context(cafile=certifi.where())
-    geolocator = Photon(ssl_context=ctx, user_agent="mymaps_br_fast")
-
-    pontos_para_buscar = []
-    EXCECOES_CIDADES = {
-        ("ZORTEA", "SC"): [-27.4514, -51.5542],
-        ("CHAPECO", "SC"): [-27.1004, -52.6152],
-        ("CHAPECÓ", "SC"): [-27.1004, -52.6152],
-        ("NAVEGANTES", "SC"): [-26.8914, -48.6548],
-        ("SAO JOSE", "SC"): [-27.6146, -48.6353],
-        ("SÃO JOSÉ", "SC"): [-27.6146, -48.6353],
-        ("CAMPO GRANDE", "MS"): [-20.4697, -54.6201],
-        ("CAMPO GRANDO", "MS"): [-20.4697, -54.6201],  # typo comum na planilha
-        ("PARANAIBA", "MS"): [-19.7942, -51.1809],
-        ("PARANAÍBA", "MS"): [-19.7942, -51.1809],
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>My Maps BR</title>
+
+  <!-- Leaflet CSS -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
 
-    for row in grupo_pontos.itertuples(index=False):
-        rua_limpa, cid_limpa, uf_limpa = str(row.Endereco).strip(), str(row.Cidade).strip(), str(row.SiglaUF).strip()
-        interv_limpa, cli_limpa, reg_limpa = str(row.Intervencao).strip(), str(row.Cliente).strip(), str(
-            row.Regiao).strip()
-        os_limpa, sla_limpa = str(row.CodOS).strip(), str(row.SLA).strip()
-
-        endereco_completo_busca = f"{rua_limpa}, {cid_limpa} - {uf_limpa}, Brasil"
-        chave_busca = endereco_completo_busca.upper().strip()
-        cid_upper = cid_limpa.upper().strip()
-
-        pos = None
-
-        # 1. Verificar EXCEÇÕES (cidades com problemas conhecidos)
-        chave_excecao = (cid_upper, uf_limpa.upper().strip())
-        if chave_excecao in EXCECOES_CIDADES:
-            pos = EXCECOES_CIDADES[chave_excecao]
-            st.session_state.coords_sessao[chave_busca] = pos
-            adicionar_ao_cache(chave_busca, cli_limpa, cid_limpa, uf_limpa, pos[0], pos[1])
-
-        # 2. Verificar CACHE se não foi encontrado em exceções
-        if pos is None:
-            lat_cache, lng_cache = obter_coordenadas_com_cache(endereco_completo_busca, chave_busca, cli_limpa,
-                                                               cid_limpa, uf_limpa)
-            if lat_cache is not None and lng_cache is not None:
-                pos = [lat_cache, lng_cache]
-                st.session_state.coords_sessao[chave_busca] = pos
-
-        # 3. Verificar coords_sessao (de runs anteriores)
-        if pos is None and chave_busca in st.session_state.coords_sessao:
-            pos = st.session_state.coords_sessao[chave_busca]
-
-        if pos is not None:
-            st.session_state.dados_agrupados_marcador.append({
-                "pos": pos, "qtd": int(row.qtd), "cid": cid_limpa, "uf": uf_limpa, "rua": rua_limpa,
-                "interv": interv_limpa, "cli": cli_limpa, "reg": reg_limpa, "os": os_limpa, "sla": sla_limpa
-            })
-        else:
-            pontos_para_buscar.append(
-                (row, endereco_completo_busca, chave_busca, interv_limpa, cli_limpa, reg_limpa, os_limpa, sla_limpa))
-
-    if pontos_para_buscar:
-        prog = st.sidebar.progress(0)
-        status = st.sidebar.empty()
-
-        for idx, (row, endereco_completo_busca, chave_busca, interv_limpa, cli_limpa, reg_limpa, os_limpa,
-                  sla_limpa) in enumerate(pontos_para_buscar):
-            rua, cid, uf_val = str(row.Endereco).strip(), str(row.Cidade).strip(), str(row.SiglaUF).strip()
-            status.text(f"🌐 Buscando locais: {cid}-{uf_val} ({idx + 1}/{len(pontos_para_buscar)})...")
-            pos = None
-            # 1. Tenta JSON local de cidades de SC (sem API)
-            if uf_val.upper() == "SC":
-                lat_sc, lng_sc = _buscar_cidade_sc(cid)
-                if lat_sc is not None:
-                    pos = [lat_sc, lng_sc]
-
-            # 2. Fallback: correção manual conhecida
-            if not pos:
-                coords_fixas = _corrigir_coords_se_necessario(cid, None, None)
-                if coords_fixas[0] is not None:
-                    pos = list(coords_fixas)
-
-            # 3. Fallback: geocodificação via API (outros estados ou não encontrado no JSON)
-            if not pos:
-                try:
-                    loc = geolocator.geocode(endereco_completo_busca, timeout=3)
-                    if loc:
-                        pos = [loc.latitude, loc.longitude]
-                    else:
-                        loc_fallback = geolocator.geocode(f"{rua.split(',')[0]}, {cid} - {uf_val}, Brasil", timeout=2)
-                        if loc_fallback:
-                            pos = [loc_fallback.latitude, loc_fallback.longitude]
-                    if not pos:
-                        loc_cidade = geolocator.geocode(f"{cid}, {uf_val}, Brasil", timeout=3)
-                        if loc_cidade:
-                            pos = [loc_cidade.latitude, loc_cidade.longitude]
-                except Exception as e:
-                    print(f"[GEOCODE ERROR] {endereco_completo_busca}: {e}")
-                    pos = None
-
-            if pos:
-                # Corrige cidades com geocodificação conhecidamente errada
-                pos[0], pos[1] = _corrigir_coords_se_necessario(cid, pos[0], pos[1])
-                st.session_state.coords_sessao[chave_busca] = pos
-                # Salvar no cache para próximas execuções
-                adicionar_ao_cache(chave_busca, cli_limpa, cid, uf_val, pos[0], pos[1])
-                st.session_state.dados_agrupados_marcador.append({
-                    "pos": pos, "qtd": int(row.qtd), "cid": cid, "uf": uf_val, "rua": rua,
-                    "interv": interv_limpa, "cli": cli_limpa, "reg": reg_limpa, "os": os_limpa, "sla": sla_limpa
-                })
-            prog.progress((idx + 1) / len(pontos_para_buscar))
-
-        status.empty()
-        prog.empty()
-
-    if st.session_state.coords_sessao:
-        coordenadas_validas = list(st.session_state.coords_sessao.values())
-        lats, lngs = [c[0] for c in coordenadas_validas], [c[1] for c in coordenadas_validas]
-        st.session_state.map_center = [(min(lats) + max(lats)) / 2, (min(lngs) + max(lngs)) / 2]
-
-        delta_max = max(max(lats) - min(lats), max(lngs) - min(lngs))
-        if delta_max < 0.05:
-            zoom_calc = 14
-        elif delta_max < 0.2:
-            zoom_calc = 12
-        elif delta_max < 0.5:
-            zoom_calc = 11
-        elif delta_max < 1.0:
-            zoom_calc = 10
-        elif delta_max < 2.0:
-            zoom_calc = 9
-        elif delta_max < 4.0:
-            zoom_calc = 8
-        elif delta_max < 8.0:
-            zoom_calc = 7
-        else:
-            zoom_calc = 6
-        st.session_state.map_zoom = zoom_calc
-        st.rerun()
-
-
-# --- FUNÇÃO COMPARTILHADA: ADICIONA MARCADORES AO MAPA ---
-def adicionar_marcadores_ao_mapa(m, df_agrupamento):
-    """Adiciona marcadores em um folium.Map a partir de um DataFrame filtrado."""
-    if df_agrupamento.empty:
-        return
-    df = df_agrupamento.copy()
-    df['lat'] = df['pos'].apply(lambda x: x[0])
-    df['lng'] = df['pos'].apply(lambda x: x[1])
-
-    for (lat, lng), group_local in df.groupby(['lat', 'lng']):
-        total_chamados = len(group_local)
-        primeiro = group_local.iloc[0]
-        intervencoes = group_local['interv'].tolist()
-        cor = obter_cor_prioritaria(intervencoes)
-
-        texto = f"""
-            <div style='font-family: Arial, sans-serif; min-width: 240px;'>
-                <span style='font-size: 14px; font-weight: bold; color: #FF4B4B;'>📍 {primeiro['cid']} - {primeiro['uf']}</span><br>
-                <small style='color: #666;'>{primeiro['rua']}</small><br>
-                <hr style='margin: 8px 0; border: 0; border-top: 1px solid #ddd;'>
-            """
-        for chamado in group_local.itertuples():
-            texto += f"<b>Intervenção:</b> {chamado.interv}<br>"
-            texto += f"<b>Cliente:</b> {chamado.cli}<br><b>Nº Chamado:</b> {chamado.os}<br>"
-            sla_val = str(chamado.sla).strip()
-            if sla_val and sla_val.upper() not in ("S/N", "NAN"):
-                texto += f"<b>SLA:</b> {sla_val}<br>"
-            if len(group_local) > 1:
-                texto += "<hr style='margin: 6px 0; border: 0; border-top: 1px dashed #eee;'>"
-        texto += f"<span style='font-size: 11px; font-weight: bold; color: #333;'>Total de chamados: {total_chamados}</span></div>"
-
-        raio = min(9 + (total_chamados * 0.2), 28)
-        diam = int(raio * 2)
-        fonte = max(8, min(12, int(raio * 0.65)))
-        html_icone = (
-            f'<div style="background-color: {cor}; color: white; border: 1px solid #1E1E1E; '
-            f'border-radius: 50%; width: {diam}px; height: {diam}px; display: flex; '
-            f'align-items: center; justify-content: center; font-size: {fonte}px; '
-            f'font-weight: bold; box-shadow: 0px 0px 8px {cor};">{total_chamados}</div>'
-        )
-        folium.Marker(
-            location=[lat, lng],
-            icon=folium.DivIcon(html=html_icone, icon_size=(diam, diam), icon_anchor=(raio, raio)),
-            tooltip=texto, popup=texto
-        ).add_to(m)
-
-
-# --- CONSTRUTOR DINÂMICO DO MAPA ---
-def construir_mapa_geral():
-    m = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
-    dados_filtrados = []
-    for p in st.session_state.dados_agrupados_marcador:
-        if st.session_state.f_interv != "Todos" and p["interv"] != st.session_state.f_interv: continue
-        if st.session_state.f_clie != "Todos" and p["cli"] != st.session_state.f_clie: continue
-        if st.session_state.f_regi != "Todos" and p["reg"] != st.session_state.f_regi: continue
-        dados_filtrados.append(p)
-
-    adicionar_marcadores_ao_mapa(m, pd.DataFrame(dados_filtrados))
-    return m
-
-
-# --- RENDERIZAÇÃO DA SIDEBAR CONDICIONAL ---
-if st.session_state.df_final is not None and CONSEGUI_VER_LISTA:
-    with st.sidebar:
-        df = st.session_state.df_final.copy()
-        if st.session_state.f_interv != "Todos": df = df[df['Intervencao'] == st.session_state.f_interv]
-        if st.session_state.f_clie != "Todos": df = df[df['Cliente'] == st.session_state.f_clie]
-        if st.session_state.f_regi != "Todos": df = df[df['Regiao'] == st.session_state.f_regi]
-
-        df_botoes = df.copy()
-        df_botoes['OS_Num'] = pd.to_numeric(df_botoes['CodOS'], errors='coerce')
-        df_botoes = df_botoes.sort_values(by=['SiglaUF', 'Cidade', 'OS_Num', 'CodOS'])
-
-        st.markdown("---")
-        with st.expander(f"📋 Lista de Chamados ({len(df_botoes)})", expanded=st.session_state.expander_aberto):
-            busca = st.text_input("🔍 Pesquisar chamado:", placeholder="Ex: PR ou Curitiba...")
-            if busca:
-                st.session_state.expander_aberto = True
-                bn = str(busca).strip().lower()
-                df_botoes = df_botoes[
-                    df_botoes['CodOS'].astype(str).str.lower().str.contains(bn) | df_botoes['Cidade'].astype(
-                        str).str.lower().str.contains(bn) | df_botoes['SiglaUF'].astype(str).str.lower().str.contains(
-                        bn)]
-
-            st.markdown('<div class="lista-chamados-container">', unsafe_allow_html=True)
-            if df_botoes.empty:
-                st.caption("⚠️ Nenhum chamado encontrado.")
-            else:
-                # Gera um único bloco <style> consolidado (evita centenas de tags no DOM)
-                regras_css = []
-                for idx_css, row_css in enumerate(df_botoes.itertuples(index=False)):
-                    cham_css = str(row_css.CodOS)
-                    cor_css = CORES_INTERVENCAO.get(str(row_css.Intervencao), "#3e404f")
-                    regras_css.append(
-                        f'div[data-testid="stSidebar"] div[data-testid="stButton"]:nth-of-type({idx_css + 1}) button'
-                        f' {{ border-left: 6px solid {cor_css} !important; }}'
-                    )
-                if regras_css:
-                    st.markdown(f"<style>{''.join(regras_css)}</style>", unsafe_allow_html=True)
-
-                for idx, row in enumerate(df_botoes.itertuples(index=False)):
-                    cham, cid, uf_val, rua_completa, interv = str(row.CodOS), str(row.Cidade), str(row.SiglaUF), str(
-                        row.Endereco), str(row.Intervencao)
-                    is_sel = (str(st.session_state.chamado_selecionado) == cham)
-                    prefixo = "🔷" if is_sel else "🔵"
-                    label_botao = f"{prefixo} [{cid}-{uf_val}] OS: {cham}"
-
-                    if st.button(label_botao, key=f"btn_os_{cham}_{idx}"):
-                        st.session_state.chamado_selecionado = cham
-                        st.session_state.expander_aberto = True
-                        busca_end = f"{rua_completa.strip()}, {cid.strip()} - {uf_val.strip()}, Brasil".upper().strip()
-                        if busca_end not in st.session_state.coords_sessao: busca_end = " ".join(busca_end.split())
-                        if busca_end in st.session_state.coords_sessao:
-                            st.session_state.map_center = st.session_state.coords_sessao[busca_end]
-                            st.session_state.map_zoom = 17
-                        st.rerun()
-            st.markdown('</div>', unsafe_allow_html=True)
-
-# --- ÁREA PRINCIPAL COM CONTROLE DE ABAS REMOTO ---
-if st.session_state.df_final is not None and st.session_state.dados_agrupados_marcador:
-    st.markdown('<div class="map-container">', unsafe_allow_html=True)
-
-    lista_abas_nome = ["🗺️ Visão Geral"]
-    if CONSEGUI_VER_ROTAS: lista_abas_nome.append("🚗 Traçar Rotas")
-
-    abas_renderizations = st.tabs(lista_abas_nome)
-
-    df_atual_filtrado = st.session_state.df_final.copy()
-    if st.session_state.f_interv != "Todos": df_atual_filtrado = df_atual_filtrado[
-        df_atual_filtrado['Intervencao'] == st.session_state.f_interv]
-    if st.session_state.f_clie != "Todos": df_atual_filtrado = df_atual_filtrado[
-        df_atual_filtrado['Cliente'] == st.session_state.f_clie]
-    if st.session_state.f_regi != "Todos": df_atual_filtrado = df_atual_filtrado[
-        df_atual_filtrado['Regiao'] == st.session_state.f_regi]
-
-    with abas_renderizations[0]:
-        mapa_atualizado = construir_mapa_geral()
-        saída_mapa_geral = st_folium(
-            mapa_atualizado, width=1800, height=850, use_container_width=True,
-            returned_objects=["last_object_clicked"], center=st.session_state.map_center,
-            zoom=st.session_state.map_zoom,
-            key=f"mapa_geral_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}"
-        )
-
-        st.markdown(renderizar_legenda_dinamica_html(df_atual_filtrado), unsafe_allow_html=True)
-
-        if saída_mapa_geral and saída_mapa_geral.get("last_object_clicked"):
-            clique = saída_mapa_geral["last_object_clicked"]
-            lat_clicada, lng_clicada = clique["lat"], clique["lng"]
-            if (abs(lat_clicada - st.session_state.map_center[0]) > 0.0001 or abs(
-                    lng_clicada - st.session_state.map_center[1]) > 0.0001) or st.session_state.map_zoom != 17:
-                st.session_state.map_center = [lat_clicada, lng_clicada]
-                st.session_state.map_zoom = 17
-                for cb, pos in st.session_state.coords_sessao.items():
-                    if abs(pos[0] - lat_clicada) < 0.001 and abs(pos[1] - lng_clicada) < 0.001:
-                        for r in st.session_state.df_final.itertuples():
-                            if f"{str(r.Endereco).strip()}, {str(r.Cidade).strip()} - {str(r.SiglaUF).strip()}, Brasil".upper().strip() == cb:
-                                st.session_state.chamado_selecionado = str(r.CodOS)
-                                st.session_state.expander_aberto = True
-                                break
-                        break
-                st.rerun()
-
-    if CONSEGUI_VER_ROTAS:
-        with abas_renderizations[1]:
-            df_rotas = df_atual_filtrado.copy()
-            df_rotas['Cidade_UF'] = df_rotas['Cidade'] + " - " + df_rotas['SiglaUF']
-            lista_cidades_br = sorted(df_rotas['Cidade_UF'].unique().tolist())
-
-            if not lista_cidades_br:
-                st.warning("⚠️ Nenhuma cidade disponível para rotas com os filtros aplicados.")
-            else:
-                # Inicializa estado da cidade de saída do técnico
-                if 'cidade_saida_tecnico' not in st.session_state:
-                    st.session_state.cidade_saida_tecnico = ""
-                if 'coords_saida_tecnico' not in st.session_state:
-                    st.session_state.coords_saida_tecnico = None
-
-                col_saida, col_destino, col_btn = st.columns([2, 2, 1.2])
-                with col_saida:
-                    cidade_saida_input = st.text_input(
-                        "🏠 Cidade de Saída do Técnico OBS: FUNÇÃO EM DESENVOLVIMENTO. PODE NÃO FUNCIONAR CORRETAMENTE.",
-                        value=st.session_state.cidade_saida_tecnico,
-                        placeholder="Ex: Videira - SC",
-                        key="cidade_saida_tecnico_input"
-                    )
-                with col_destino:
-                    destino = st.selectbox("🏁 Cidade de Destino (Chamado)", lista_cidades_br,
-                                           index=0, key="destino_rota")
-                with col_btn:
-                    calcular = st.button("🚀 Calcular Rota", use_container_width=True)
-
-                # Inicializa estado dos pontos de rota
-                if 'rota_ponto_A' not in st.session_state:
-                    st.session_state.rota_ponto_A = None
-                if 'rota_ponto_B' not in st.session_state:
-                    st.session_state.rota_ponto_B = None
-                if 'rota_info' not in st.session_state:
-                    st.session_state.rota_info = None
-
-                m_rota = folium.Map(location=st.session_state.map_center, zoom_start=st.session_state.map_zoom)
-
-                dados_filtrados_rota = []
-                for p in st.session_state.dados_agrupados_marcador:
-                    if st.session_state.f_interv != "Todos" and p["interv"] != st.session_state.f_interv: continue
-                    if st.session_state.f_clie != "Todos" and p["cli"] != st.session_state.f_clie: continue
-                    if st.session_state.f_regi != "Todos" and p["reg"] != st.session_state.f_regi: continue
-                    dados_filtrados_rota.append(p)
-
-                df_agrupamento_rota = pd.DataFrame(dados_filtrados_rota)
-                adicionar_marcadores_ao_mapa(m_rota, df_agrupamento_rota)
-
-                if calcular:
-                    # --- GEOCODIFICAR CIDADE DE SAÍDA DO TÉCNICO ---
-                    cidade_saida_str = cidade_saida_input.strip()
-                    ponto_A = None
-
-                    if not cidade_saida_str:
-                        st.error("❌ Informe a cidade de saída do técnico antes de calcular a rota.")
-                    else:
-                        st.session_state.cidade_saida_tecnico = cidade_saida_str
-                        chave_saida = f"{cidade_saida_str}, Brasil".upper().strip()
-
-                        # Verificar cache ou coords_sessao primeiro
-                        if chave_saida in st.session_state.coords_sessao:
-                            ponto_A = st.session_state.coords_sessao[chave_saida]
-                        else:
-                            cache = carregar_cache_geocodificacao()
-                            if chave_saida in cache:
-                                entrada = cache[chave_saida]
-                                ponto_A = [entrada["lat"], entrada["lng"]]
-                                st.session_state.coords_sessao[chave_saida] = ponto_A
-                            else:
-                                # Geocodificar via API — cria instância local do geolocator
-                                with st.spinner(f"📡 Buscando coordenadas de '{cidade_saida_str}'..."):
-                                    cidade_apenas = cidade_saida_str.split("-")[0].split(",")[0].strip()
-                                    queries_saida = [cidade_apenas, f"{cidade_apenas} Brasil"]
-                                    loc_saida = None
-                                    ultimo_erro = None
-                                    try:
-                                        ctx_local = ssl.create_default_context(cafile=certifi.where())
-                                        geo_local = Photon(ssl_context=ctx_local, user_agent="mymaps_br_fast")
-                                        for q in queries_saida:
-                                            try:
-                                                loc_saida = geo_local.geocode(q, timeout=5)
-                                                if loc_saida:
-                                                    break
-                                            except Exception as e:
-                                                ultimo_erro = e
-                                                continue
-                                    except Exception as e:
-                                        ultimo_erro = e
-                                    if loc_saida:
-                                        ponto_A = [loc_saida.latitude, loc_saida.longitude]
-                                        st.session_state.coords_sessao[chave_saida] = ponto_A
-                                        cache[chave_saida] = {
-                                            "cliente": "TECNICO",
-                                            "cidade": cidade_saida_str.upper(),
-                                            "estado": "",
-                                            "lat": ponto_A[0],
-                                            "lng": ponto_A[1]
-                                        }
-                                        salvar_cache_geocodificacao(cache)
-                                    else:
-                                        detalhe = f": {ultimo_erro}" if ultimo_erro else ""
-                                        st.error(
-                                            f"❌ Não foi possível encontrar '{cidade_saida_str}'. Tente apenas o nome da cidade, ex: Videira{detalhe}")
-
-                    # --- OBTER COORDENADAS DO DESTINO (CHAMADO) ---
-                    lin_destino = df_rotas[df_rotas['Cidade_UF'] == destino].iloc[0]
-                    key_destino = f"{str(lin_destino['Endereco']).strip()}, {str(lin_destino['Cidade']).strip()} - {str(lin_destino['SiglaUF']).strip()}, Brasil".upper().strip()
-
-                    if ponto_A is not None and key_destino in st.session_state.coords_sessao:
-                        ponto_B = st.session_state.coords_sessao[key_destino]
-                        st.session_state.rota_ponto_A = ponto_A
-                        st.session_state.rota_ponto_B = ponto_B
-                    elif ponto_A is not None and key_destino not in st.session_state.coords_sessao:
-                        st.error("❌ Coordenadas do destino não encontradas. Tente recarregar a planilha.")
-
-                # Aplica a rota no mapa sempre que os pontos estiverem salvos
-                if st.session_state.rota_ponto_A and st.session_state.rota_ponto_B:
-                    pA = st.session_state.rota_ponto_A
-                    pB = st.session_state.rota_ponto_B
-
-                    import urllib.request, json as _json
-
-                    # API key ORS — lê do secrets se disponível, senão usa a padrão
-                    try:
-                        ORS_KEY = st.secrets.get("ORS_API_KEY",
-                                                 "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlNWFhOTZkNTQ5OTQ3M2I5ZTM3MTc0ZDc4OTdmZDcxIiwiaCI6Im11cm11cjY0In0=")
-                    except Exception:
-                        ORS_KEY = "eyJvcmciOiI1YjNjZTM1OTc4NTExMTAwMDFjZjYyNDgiLCJpZCI6IjBlNWFhOTZkNTQ5OTQ3M2I5ZTM3MTc0ZDc4OTdmZDcxIiwiaCI6Im11cm11cjY0In0="
-
-
-                    def _buscar_rota_ors(lat1, lng1, lat2, lng2, avoid_unpaved=False):
-                        """Chama OpenRouteService e retorna (coords, dist_km, dur_str) ou None."""
-                        url = "https://api.openrouteservice.org/v2/directions/driving-car/geojson"
-                        body = {
-                            "coordinates": [[lng1, lat1], [lng2, lat2]],
-                            "instructions": False,
-                            "preference": "recommended"
-                        }
-                        if avoid_unpaved:
-                            body["options"] = {
-                                "avoid_features": ["unpavedroads", "ferries"]
-                            }
-                        payload = _json.dumps(body).encode("utf-8")
-                        req = urllib.request.Request(
-                            url,
-                            data=payload,
-                            headers={
-                                "Authorization": ORS_KEY,
-                                "Content-Type": "application/json",
-                                "Accept": "application/json"
-                            },
-                            method="POST"
-                        )
-                        with urllib.request.urlopen(req, timeout=10) as resp:
-                            dados = _json.loads(resp.read())
-                        feat = dados["features"][0]
-                        coords = [[c[1], c[0]] for c in feat["geometry"]["coordinates"]]
-                        props = feat["properties"]["summary"]
-                        dist_km = round(props["distance"] / 1000, 1)
-                        dur_min = round(props["duration"] / 60)
-                        h, m = divmod(dur_min, 60)
-                        dur_str = f"{h}h {m}min" if h else f"{m} min"
-                        return coords, dist_km, dur_str
-
-
-                    rota_info_nova = {
-                        "origem": st.session_state.cidade_saida_tecnico,
-                        "destino": destino,
-                        "rotas": []
-                    }
-
-                    # Rota 1: recomendada (ORS já prioriza asfalto por padrão)
-                    coords_1, dist_1, dur_1 = None, None, None
-                    try:
-                        coords_1, dist_1, dur_1 = _buscar_rota_ors(pA[0], pA[1], pB[0], pB[1], avoid_unpaved=False)
-                    except Exception as e_r1:
-                        coords_1 = None
-
-                    # Rota 2: explicitamente evitando estradas não asfaltadas e ferries
-                    coords_2, dist_2, dur_2 = None, None, None
-                    try:
-                        coords_2, dist_2, dur_2 = _buscar_rota_ors(pA[0], pA[1], pB[0], pB[1], avoid_unpaved=True)
-                    except Exception:
-                        coords_2 = None
-
-                    if coords_1:
-                        folium.PolyLine(
-                            coords_1, color="#007BFF", weight=6, opacity=0.9,
-                            tooltip=f"🔵 Rota mais rápida: {dist_1} km · {dur_1}"
-                        ).add_to(m_rota)
-                        rota_info_nova["rotas"].append({
-                            "label": "🔵 Rota mais rápida",
-                            "distancia_km": dist_1,
-                            "duracao_str": dur_1
-                        })
-
-                    # Só mostra rota asfaltada se for diferente da principal (>2 km)
-                    if coords_2 and (coords_1 is None or abs((dist_2 or 0) - (dist_1 or 0)) > 2):
-                        folium.PolyLine(
-                            coords_2, color="#2E8B57", weight=5, opacity=0.85,
-                            dash_array="6",
-                            tooltip=f"🟢 Rota asfaltada: {dist_2} km · {dur_2}"
-                        ).add_to(m_rota)
-                        rota_info_nova["rotas"].append({
-                            "label": "🟢 Rota asfaltada",
-                            "distancia_km": dist_2,
-                            "duracao_str": dur_2
-                        })
-
-                    if not coords_1 and not coords_2:
-                        # Fallback: linha reta
-                        folium.PolyLine(
-                            [pA, pB], color="#007BFF", weight=4, opacity=0.7,
-                            dash_array="8",
-                            tooltip="Rota aproximada (linha reta)"
-                        ).add_to(m_rota)
-                        rota_info_nova["fallback"] = True
-                        rota_info_nova["rotas"].append({
-                            "label": "⚠️ Linha reta (ORS indisponível)",
-                            "distancia_km": "—",
-                            "duracao_str": "—"
-                        })
-
-                    st.session_state.rota_info = rota_info_nova
-
-                    # Marcadores de início e fim
-                    folium.Marker(
-                        pA,
-                        popup="🏠 Saída do Técnico",
-                        tooltip="Saída do Técnico",
-                        icon=folium.Icon(color="green", icon="home", prefix="fa")
-                    ).add_to(m_rota)
-                    folium.Marker(
-                        pB,
-                        popup="🏁 Destino",
-                        tooltip="Destino",
-                        icon=folium.Icon(color="red", icon="flag", prefix="fa")
-                    ).add_to(m_rota)
-
-                    m_rota.fit_bounds([pA, pB], padding=(40, 40))
-
-                saída_mapa_rotas = st_folium(
-                    m_rota, width=1800, height=700, use_container_width=True,
-                    returned_objects=["last_object_clicked"],
-                    key=f"mapa_rotas_lat_{st.session_state.map_center[0]}_zoom_{st.session_state.map_zoom}"
-                )
-
-                st.markdown(renderizar_legenda_dinamica_html(df_atual_filtrado), unsafe_allow_html=True)
-
-                if saída_mapa_rotas and saída_mapa_rotas.get("last_object_clicked"):
-                    lat_clicada = saída_mapa_rotas["last_object_clicked"]["lat"]
-                    lng_clicada = saída_mapa_rotas["last_object_clicked"]["lng"]
-
-                    dist_lat_r = abs(lat_clicada - st.session_state.map_center[0])
-                    dist_lng_r = abs(lng_clicada - st.session_state.map_center[1])
-
-                    if (dist_lat_r > 0.0001 or dist_lng_r > 0.0001) or st.session_state.map_zoom != 17:
-                        st.session_state.map_center = [lat_clicada, lng_clicada]
-                        st.session_state.map_zoom = 17
-                        st.rerun()
-
-    st.markdown('</div>', unsafe_allow_html=True)
-else:
-    st.container().markdown("<br><br><center><h3>⬅️ Insira a planilha para renderizar os endereços</h3></center>",
-                            unsafe_allow_html=True)
+    body {
+      display: flex;
+      height: 100vh;
+      width: 100vw;
+      background-color: #0e1117;
+      color: #fafafa;
+      overflow: hidden;
+    }
+
+    /* --- SIDEBAR --- */
+    aside {
+      position: relative;
+      width: 320px;
+      height: 100%;
+      background-color: #262730;
+      padding: 1.25rem 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      border-right: 1px solid rgba(250, 250, 250, 0.05);
+      flex-shrink: 0;
+      transition: width 0.3s ease, padding 0.3s ease;
+      overflow-y: auto;
+      overflow-x: hidden;
+      z-index: 1000;
+    }
+
+    aside.collapsed {
+      width: 0;
+      padding: 1.25rem 0;
+      border-right: none;
+    }
+
+    .toggle-btn {
+      position: fixed;
+      top: 1rem;
+      left: 305px;
+      width: 28px;
+      height: 28px;
+      background-color: #262730;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 50%;
+      color: #fafafa;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      z-index: 2000;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
+      transition: left 0.3s ease, background-color 0.2s;
+    }
+
+    aside.collapsed + .toggle-btn {
+      left: 10px;
+    }
+
+    .toggle-btn:hover { background-color: #3b3d4a; }
+
+    .badge-version {
+      align-self: flex-start;
+      font-size: 0.7rem;
+      background: rgba(255, 255, 255, 0.08);
+      color: #9a9ca1;
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .app-title {
+      font-size: 1.2rem;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding-bottom: 0.8rem;
+      border-bottom: 1px solid rgba(250, 250, 250, 0.1);
+    }
+
+    .upload-card {
+      background-color: #1a1c23;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      padding: 0.75rem 1rem;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.5rem;
+      cursor: pointer;
+    }
+
+    .upload-card:hover { border-color: rgba(255, 255, 255, 0.3); }
+
+    .upload-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      font-size: 0.85rem;
+      color: #fafafa;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      padding: 0.35rem 0.65rem;
+      border-radius: 4px;
+    }
+
+    .upload-info {
+      font-size: 0.7rem;
+      color: #7b7e87;
+      word-break: break-all;
+    }
+
+    /* --- EXPANDER MENUS --- */
+    .expander-container {
+      background: #1e1e24;
+      border-radius: 8px;
+      border: 1px solid #3e404f;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .expander-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 0.75rem;
+      cursor: pointer;
+      user-select: none;
+      background-color: #1e1e24;
+      transition: background-color 0.2s;
+    }
+
+    .expander-header:hover {
+      background-color: #262730;
+    }
+
+    .expander-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fafafa;
+      display: flex;
+      align-items: center;
+      gap: 0.4rem;
+    }
+
+    .expander-icon {
+      width: 14px;
+      height: 14px;
+      color: #9a9ca1;
+      transition: transform 0.25s ease;
+      flex-shrink: 0;
+    }
+
+    .expander-container.open .expander-icon {
+      transform: rotate(180deg);
+    }
+
+    .expander-body {
+      display: none;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 0 0.75rem 0.75rem 0.75rem;
+      border-top: 1px solid rgba(255, 255, 255, 0.05);
+      background: #1e1e24;
+    }
+
+    .expander-container.open .expander-body {
+      display: flex;
+    }
+
+    .expander-body label {
+      font-size: 0.75rem;
+      color: #9a9ca1;
+      margin-bottom: 2px;
+      display: block;
+    }
+
+    select, input[type="text"] {
+      width: 100%;
+      background-color: #262730;
+      border: 1px solid #464855;
+      color: #fafafa;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      outline: none;
+    }
+
+    .btn-group {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 0.25rem;
+    }
+
+    .btn-primary {
+      flex: 1;
+      background-color: #007BFF;
+      color: white;
+      border: none;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .btn-primary:hover { background-color: #0056b3; }
+
+    .btn-secondary {
+      flex: 1;
+      background-color: #3b3d4a;
+      color: white;
+      border: none;
+      padding: 8px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: bold;
+      cursor: pointer;
+    }
+    .btn-secondary:hover { background-color: #4a4d57; }
+
+    /* Lista Interna dos Chamados */
+    .lista-chamados-container {
+      max-height: 260px;
+      overflow-y: auto;
+      background-color: #1a1c23;
+      padding: 6px;
+      border-radius: 6px;
+      border: 1px solid #3e404f;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .chamado-item-btn {
+      background: #262730;
+      color: #e0e0e0;
+      border: 1px solid #464855;
+      border-left: 6px solid #464855;
+      padding: 8px 10px;
+      text-align: left;
+      font-size: 11px;
+      font-family: monospace;
+      border-radius: 4px;
+      cursor: pointer;
+      transition: background-color 0.2s, border-color 0.2s;
+    }
+    .chamado-item-btn:hover { background-color: #31333f; }
+    .chamado-item-btn.selected {
+      border-color: #007BFF;
+      background-color: #2b3040;
+    }
+
+    /* Cards de Rota Selecionáveis */
+    .rota-card-option {
+      background: #1a1c23;
+      border: 2px solid #3e404f;
+      padding: 8px 10px;
+      border-radius: 6px;
+      margin-top: 6px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .rota-card-option:hover {
+      border-color: #007BFF;
+      background: #22252e;
+    }
+    .rota-card-option.active {
+      border-color: #007BFF;
+      background: #007BFF1a;
+    }
+
+    /* --- PIN DE LOCALIZAÇÃO SVG/CSS (PONTOS DE ROTA) --- */
+    .map-pin {
+      position: relative;
+      width: 30px;
+      height: 40px;
+      cursor: pointer;
+    }
+    .map-pin svg {
+      width: 100%;
+      height: 100%;
+      filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6));
+    }
+
+    /* --- CONTEÚDO PRINCIPAL --- */
+    main {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      position: relative;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    .tabs-bar {
+      display: flex;
+      background-color: #1E1E24;
+      padding: 6px 12px;
+      margin: 10px 15px 0 15px;
+      border-radius: 8px;
+      border: 1px solid #3e404f;
+      gap: 8px;
+      align-items: center;
+      z-index: 500;
+    }
+
+    .tab-btn {
+      background: transparent;
+      border: none;
+      color: #E0E0E0;
+      font-size: 13px;
+      font-weight: bold;
+      padding: 6px 16px;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+
+    .tab-btn.active {
+      background-color: #007BFF;
+      color: #FFFFFF;
+    }
+
+    /* --- TOOLBAR DE ROTAS --- */
+    .rota-toolbar {
+      display: none;
+      gap: 10px;
+      align-items: center;
+      padding: 8px 15px;
+      background: #1a1c23;
+      margin: 8px 15px 0 15px;
+      border-radius: 6px;
+      border: 1px solid #3e404f;
+      z-index: 500;
+      position: relative;
+    }
+
+    .multiselect-dropdown {
+      position: relative;
+      flex: 2;
+      min-width: 220px;
+    }
+
+    .multiselect-btn {
+      width: 100%;
+      background-color: #262730;
+      border: 1px solid #464855;
+      color: #fafafa;
+      padding: 7px 10px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      cursor: pointer;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .multiselect-list {
+      display: none;
+      position: absolute;
+      top: 105%;
+      left: 0;
+      right: 0;
+      max-height: 250px;
+      overflow-y: auto;
+      background-color: #1e1e24;
+      border: 1px solid #3e404f;
+      border-radius: 6px;
+      padding: 6px;
+      z-index: 2000;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    }
+
+    .multiselect-list.open {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .multiselect-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      font-size: 0.8rem;
+      color: #e0e0e0;
+      cursor: pointer;
+    }
+
+    .multiselect-item:hover {
+      background-color: #262730;
+    }
+
+    .multiselect-item input[type="checkbox"] {
+      width: auto;
+      cursor: pointer;
+    }
+
+    #map-container {
+      flex: 1;
+      width: calc(100% - 30px);
+      margin: 10px 15px 15px 15px;
+      border-radius: 8px;
+      overflow: hidden;
+      border: 1px solid #3e404f;
+      position: relative;
+    }
+
+    #map {
+      width: 100%;
+      height: 100%;
+      background-color: #0e1117;
+    }
+
+    .legenda-container {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      background-color: #1E1E24;
+      padding: 10px 15px;
+      border-radius: 8px;
+      border: 1px solid #3e404f;
+      margin: 0 15px 10px 15px;
+      max-height: 90px;
+      overflow-y: auto;
+    }
+
+    .legenda-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 12px;
+      font-weight: 500;
+      color: #E0E0E0;
+    }
+
+    .legenda-cor {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      border: 1px solid #1E1E1E;
+      flex-shrink: 0;
+    }
+
+    /* Ícone customizado Leaflet DivIcon para chamados */
+    .custom-cluster-icon {
+      border: 1px solid #1E1E1E;
+      border-radius: 50%;
+      color: white;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    .empty-state {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      font-size: 1.15rem;
+      font-weight: 500;
+      color: #fafafa;
+      text-align: center;
+      z-index: 400;
+    }
+  </style>
+</head>
+<body>
+
+  <input type="file" id="file-input" accept=".xlsx, .xls" style="display: none;" />
+
+  <!-- Sidebar -->
+  <aside id="sidebar">
+    <div class="badge-version">v0.5.0</div>
+    <div class="app-title">
+      <span>📍</span>
+      <span>My Maps BR</span>
+    </div>
+
+    <!-- Upload -->
+    <div class="upload-card" id="upload-card">
+      <div class="upload-btn">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+          <polyline points="17 8 12 3 7 8"></polyline>
+          <line x1="12" y1="3" x2="12" y2="15"></line>
+        </svg>
+        Upload
+      </div>
+      <div class="upload-info" id="upload-label">200MB per file • XLSX</div>
+    </div>
+
+    <!-- Filtros Recolhíveis (Expander) -->
+    <div class="expander-container" id="filtros-container" style="display: none;">
+      <div class="expander-header" id="expander-filtros-toggle">
+        <div class="expander-title">⏳ Filtros</div>
+        <svg class="expander-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </div>
+
+      <div class="expander-body">
+        <div>
+          <label>Intervenção:</label>
+          <select id="filtro-intervencao"><option value="Todos">Todos</option></select>
+        </div>
+
+        <div>
+          <label>Cliente:</label>
+          <select id="filtro-cliente"><option value="Todos">Todos</option></select>
+        </div>
+
+        <div>
+          <label>Região:</label>
+          <select id="filtro-regiao"><option value="Todos">Todos</option></select>
+        </div>
+
+        <div class="btn-group">
+          <button class="btn-primary" id="btn-aplicar-filtros">⚡ Aplicar</button>
+          <button class="btn-secondary" id="btn-limpar-filtros">🧹 Limpar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lista de Chamados Recolhível (Expander) -->
+    <div class="expander-container" id="container-lista" style="display: none;">
+      <div class="expander-header" id="expander-chamados-toggle">
+        <div class="expander-title" id="label-chamados">📋 Lista de Chamados (0)</div>
+        <svg class="expander-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <polyline points="6 9 12 15 18 9"></polyline>
+        </svg>
+      </div>
+
+      <div class="expander-body">
+        <input type="text" id="busca-chamado" placeholder="🔍 Ex: PR ou Curitiba..." />
+        <div class="lista-chamados-container" id="lista-chamados"></div>
+      </div>
+    </div>
+
+    <!-- Info Rota Sidebar -->
+    <div id="sidebar-rota-info" style="display: none; background:#1e1e24; padding:10px; border-radius:6px; font-size:12px; border:1px solid #3e404f;"></div>
+  </aside>
+
+  <!-- Botão Toggle Sidebar -->
+  <button class="toggle-btn" id="toggle-btn">
+    <svg id="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+      <polyline points="15 18 9 12 15 6"></polyline>
+    </svg>
+  </button>
+
+  <!-- Painel Principal -->
+  <main>
+    <div class="tabs-bar" id="tabs-bar" style="display: none;">
+      <button class="tab-btn active" id="tab-geral">🗺️ Visão Geral</button>
+      <button class="tab-btn" id="tab-rotas">🚗 Traçar Rotas</button>
+    </div>
+
+    <!-- Toolbar de Rotas -->
+    <div class="rota-toolbar" id="rota-toolbar">
+      <input type="text" id="rota-saida" placeholder="🏠 Saída (ex: Videira - SC)" style="flex: 1.5;" />
+      
+      <!-- Multi-Select Dropdown -->
+      <div class="multiselect-dropdown" id="multiselect-dropdown">
+        <div class="multiselect-btn" id="multiselect-btn">
+          <span id="multiselect-btn-text">🏁 Selecionar Destinos (0)</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="6 9 12 15 18 9"></polyline>
+          </svg>
+        </div>
+        <div class="multiselect-list" id="multiselect-list"></div>
+      </div>
+
+      <button class="btn-primary" id="btn-calc-rota" style="flex: 1;">🚀 Calcular Rota</button>
+    </div>
+
+    <!-- Mapa -->
+    <div id="map-container">
+      <div class="empty-state" id="empty-state">⬅️ Insira a planilha para renderizar os endereços</div>
+      <div id="map"></div>
+    </div>
+
+    <!-- Legenda Dinâmica -->
+    <div class="legenda-container" id="legenda-dinamica" style="display: none;"></div>
+  </main>
+
+  <!-- Dependências JS (Leaflet + SheetJS) -->
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script>
+    /* =========================================================================
+       1. CONSTANTES, CORES E CONFIGURAÇÕES
+       ========================================================================= */
+    const CORES_INTERVENCAO = {
+      "Alteração de engenharia": "#4B0082",
+      "Autorização de deslocamento": "#4682B4",
+      "Cofre": "#708090",
+      "Corretiva": "#FF4B4B",
+      "Corretiva POS reincidentes": "#B22222",
+      "Desinstalação": "#FF8C00",
+      "Helpdesk": "#008B8B",
+      "Inspeção técnica": "#9ACD32",
+      "Instalação": "#2E8B57",
+      "Laudo técnico": "#8B008B",
+      "Manutenção gerencial": "#5F9EA0",
+      "Orçamento": "#FFD700",
+      "Orçamento aprovado": "#32CD32",
+      "Orçamento pendente da filial detalhar motivo": "#FFA500",
+      "Orçamento pendente de aprovação do cliente": "#DAA520",
+      "Orçamento reprovado": "#8B0000",
+      "Preventiva": "#007BFF",
+      "Preventiva gerencial": "#1E90FF",
+      "Reinstalação": "#20B2AA",
+      "Treinamento": "#9370DB",
+      "Troca de Veloh C": "#8B4513",
+      "Não Informado": "#464855"
+    };
+
+    const EXCECOES_CIDADES = {
+      "ZORTEA-SC": [-27.4514, -51.5542],
+      "CHAPECO-SC": [-27.1004, -52.6152],
+      "CHAPECÓ-SC": [-27.1004, -52.6152],
+      "NAVEGANTES-SC": [-26.8914, -48.6548],
+      "SAO JOSE-SC": [-27.6146, -48.6353],
+      "SÃO JOSÉ-SC": [-27.6146, -48.6353],
+      "CAMPO GRANDE-MS": [-20.4697, -54.6201],
+      "CAMPO GRANDO-MS": [-20.4697, -54.6201],
+      "PARANAIBA-MS": [-19.7942, -51.1809],
+      "PARANAÍBA-MS": [-19.7942, -51.1809],
+      "SAO CRISTOVAO DO SUL-SC": [-27.2666, -50.4388],
+      "LUZERNA-SC": [-27.1304, -51.4682]
+    };
+
+    /* =========================================================================
+       2. ESTADO GLOBAL DA APLICAÇÃO
+       ========================================================================= */
+    let dfRaw = [];
+    let dfFinal = [];
+    let markersLayer = L.layerGroup();
+    let routesLayer = L.layerGroup();
+    let map = null;
+    let abaAtiva = "geral";
+    let coordsSessao = {};
+    let chamadoSelecionado = null;
+    let marcadoresPorOS = {};
+    let destinosSelecionados = new Set();
+    let marcadorAbertoPorClique = null;
+    let rotasCalculadas = [];
+    let rotaPolylines = [];
+
+    /* =========================================================================
+       3. CACHE LOCAL (localStorage)
+       ========================================================================= */
+    function carregarCacheLocal() {
+      try {
+        return JSON.parse(localStorage.getItem("geocodificacao_cache") || "{}");
+      } catch {
+        return {};
+      }
+    }
+
+    function salvarCacheLocal(chave, dados) {
+      const cache = carregarCacheLocal();
+      cache[chave] = dados;
+      localStorage.setItem("geocodificacao_cache", JSON.stringify(cache));
+    }
+
+    /* =========================================================================
+       4. INICIALIZAÇÃO DO MAPA (Leaflet)
+       ========================================================================= */
+    function initMap() {
+      if (!map) {
+        map = L.map('map', { zoomControl: true }).setView([-14.2350, -51.9253], 4);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 19,
+          attribution: '&copy; OpenStreetMap'
+        }).addTo(map);
+
+        markersLayer.addTo(map);
+        routesLayer.addTo(map);
+
+        map.on('click', () => {
+          marcadorAbertoPorClique = null;
+        });
+      }
+    }
+
+    /* =========================================================================
+       5. GEOCODIFICAÇÃO (Rua, Cidade / Estado)
+       ========================================================================= */
+    function normalizar(str) {
+      return (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+    }
+
+    async function buscarCoordenadas(rua, cid, uf) {
+      const ruaLimpa = (rua || "").trim();
+      const cidLimpa = (cid || "").trim();
+      const ufLimpa = (uf || "").trim();
+
+      const chaveBusca = `${ruaLimpa}, ${cidLimpa} / ${ufLimpa}`.toUpperCase().trim();
+      const chaveExcecao = `${normalizar(cidLimpa)}-${normalizar(ufLimpa)}`;
+
+      if (EXCECOES_CIDADES[chaveExcecao]) {
+        return EXCECOES_CIDADES[chaveExcecao];
+      }
+
+      if (coordsSessao[chaveBusca]) return coordsSessao[chaveBusca];
+      const cacheLocal = carregarCacheLocal();
+      if (cacheLocal[chaveBusca]) {
+        coordsSessao[chaveBusca] = [cacheLocal[chaveBusca].lat, cacheLocal[chaveBusca].lng];
+        return coordsSessao[chaveBusca];
+      }
+
+      const queries = [
+        `${ruaLimpa}, ${cidLimpa} / ${ufLimpa}`,
+        `${ruaLimpa}, ${cidLimpa} - ${ufLimpa}, Brasil`,
+        `${ruaLimpa.split(',')[0]}, ${cidLimpa} / ${ufLimpa}`,
+        `${cidLimpa} / ${ufLimpa}`,
+        `${cidLimpa}, ${ufLimpa}, Brasil`
+      ];
+
+      for (const q of queries) {
+        try {
+          const resp = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1`);
+          const json = await resp.json();
+          if (json.features && json.features.length > 0) {
+            const [lng, lat] = json.features[0].geometry.coordinates;
+            coordsSessao[chaveBusca] = [lat, lng];
+            salvarCacheLocal(chaveBusca, { lat, lng, cidade: cidLimpa, estado: ufLimpa });
+            return [lat, lng];
+          }
+        } catch (e) {
+          console.warn("[GEOCODE WARN]", e);
+        }
+      }
+      return null;
+    }
+
+    /* =========================================================================
+       6. PRIORIDADE DE COR & AGRUPAMENTO DE MARCADORES (CHAMADOS)
+       ========================================================================= */
+    function obterCorPrioritaria(intervencoes) {
+      const set = new Set(intervencoes.map(i => String(i).trim()));
+      if (set.has("Corretiva")) return CORES_INTERVENCAO["Corretiva"];
+      if (set.has("Corretiva POS reincidentes")) return CORES_INTERVENCAO["Corretiva POS reincidentes"];
+      if (set.has("Preventiva")) return CORES_INTERVENCAO["Preventiva"];
+      if (set.has("Preventiva gerencial")) return CORES_INTERVENCAO["Preventiva gerencial"];
+
+      const PRIORITY_ORC = [
+        "Orçamento aprovado", "Orçamento pendente de aprovação do cliente",
+        "Orçamento pendente da filial detalhar motivo", "Orçamento reprovado", "Orçamento"
+      ];
+      for (const key of PRIORITY_ORC) {
+        if (set.has(key)) return CORES_INTERVENCAO[key] || "#FFD700";
+      }
+
+      if (set.has("Instalação")) return CORES_INTERVENCAO["Instalação"];
+      if (set.has("Reinstalação")) return CORES_INTERVENCAO["Reinstalação"];
+
+      const first = Array.from(set)[0];
+      return CORES_INTERVENCAO[first] || "#FF4B4B";
+    }
+
+    function renderizarMarcadores(dados) {
+      markersLayer.clearLayers();
+      marcadoresPorOS = {};
+      marcadorAbertoPorClique = null;
+      if (!dados || dados.length === 0) return;
+
+      const grupos = {};
+      dados.forEach(item => {
+        if (!item.pos) return;
+        const key = `${item.pos[0].toFixed(5)},${item.pos[1].toFixed(5)}`;
+        if (!grupos[key]) grupos[key] = [];
+        grupos[key].push(item);
+      });
+
+      const bounds = [];
+
+      Object.values(grupos).forEach(grupo => {
+        const primeiro = grupo[0];
+        const [lat, lng] = primeiro.pos;
+        bounds.push([lat, lng]);
+
+        const total = grupo.length;
+        const intervencoes = grupo.map(g => g.Intervencao);
+        const cor = obterCorPrioritaria(intervencoes);
+
+        const raio = Math.min(9 + (total * 0.2), 28);
+        const diam = Math.round(raio * 2);
+        const fonte = Math.max(8, Math.min(12, Math.round(raio * 0.65)));
+
+        const customIcon = L.divIcon({
+          className: 'custom-cluster-icon',
+          html: `<div style="background-color:${cor}; width:${diam}px; height:${diam}px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:${fonte}px; box-shadow:0 0 8px ${cor};">${total}</div>`,
+          iconSize: [diam, diam],
+          iconAnchor: [raio, raio]
+        });
+
+        let htmlPopup = `<div style="font-family: Arial, sans-serif; min-width: 200px;">
+          <b style="color:#FF4B4B;">📍 ${primeiro.Cidade} / ${primeiro.SiglaUF}</b><br>
+          <small style="color:#666;">${primeiro.Endereco}</small><hr style="margin:6px 0; border:0; border-top:1px solid #ddd;">`;
+
+        grupo.forEach((ch, idx) => {
+          htmlPopup += `<b>Intervenção:</b> ${ch.Intervencao}<br><b>Cliente:</b> ${ch.Cliente}<br><b>Nº Chamado:</b> ${ch.CodOS}<br>`;
+          if (ch.SLA && !["S/N", "NAN"].includes(String(ch.SLA).toUpperCase())) {
+            htmlPopup += `<b>SLA:</b> ${ch.SLA}<br>`;
+          }
+          if (idx < grupo.length - 1) htmlPopup += `<hr style="margin:4px 0; border:0; border-top:1px dashed #eee;">`;
+        });
+
+        htmlPopup += `<div style="margin-top:6px; font-size:11px; font-weight:bold; color:#333;">Total de chamados: ${total}</div></div>`;
+
+        const marker = L.marker([lat, lng], { icon: customIcon });
+        marker.bindPopup(htmlPopup, { autoClose: false, closeOnClick: false });
+
+        grupo.forEach(ch => {
+          marcadoresPorOS[ch.CodOS] = marker;
+        });
+
+        marker.on('mouseover', () => {
+          marker.openPopup();
+        });
+
+        marker.on('mouseout', () => {
+          if (marcadorAbertoPorClique !== marker) {
+            marker.closePopup();
+          }
+        });
+
+        marker.on('click', () => {
+          marcadorAbertoPorClique = marker;
+          map.flyTo([lat, lng], 17, { duration: 1.2 });
+          marker.openPopup();
+
+          chamadoSelecionado = primeiro.CodOS;
+          const container = document.getElementById('container-lista');
+          if (!container.classList.contains('open')) {
+            container.classList.add('open');
+          }
+          renderizarListaChamados(dfFinal);
+
+          setTimeout(() => {
+            const btnSel = document.querySelector(`.chamado-item-btn[data-os="${primeiro.CodOS}"]`);
+            if (btnSel) {
+              btnSel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+          }, 200);
+        });
+
+        markersLayer.addLayer(marker);
+      });
+
+      if (bounds.length > 0 && routesLayer.getLayers().length === 0) {
+        map.fitBounds(bounds, { padding: [40, 40] });
+      }
+    }
+
+    /* =========================================================================
+       7. PROCESSAMENTO DO ARQUIVO EXCEL
+       ========================================================================= */
+    function mapearColuna(colunas, alvos) {
+      for (const col of colunas) {
+        if (alvos.map(a => a.toUpperCase()).includes(String(col).trim().toUpperCase())) return col;
+      }
+      for (const col of colunas) {
+        for (const alvo of alvos) {
+          if (String(col).trim().toLowerCase().includes(alvo.toLowerCase())) return col;
+        }
+      }
+      return null;
+    }
+
+    async function processarPlanilha(file) {
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(data, { type: 'array' });
+
+      let targetSheet = null;
+      for (const prioridade of ["unificado", "rat's", "rats", "chamados"]) {
+        const found = workbook.SheetNames.find(s => s.trim().toLowerCase() === prioridade);
+        if (found) { targetSheet = found; break; }
+      }
+      if (!targetSheet) targetSheet = workbook.SheetNames[0];
+
+      const sheet = workbook.Sheets[targetSheet];
+      const jsonRows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      if (jsonRows.length === 0) {
+        alert("Aba vazia ou formato inválido.");
+        return;
+      }
+
+      const colunas = Object.keys(jsonRows[0]);
+      const cOS = mapearColuna(colunas, ["CodOS", "Chamado", "ID", "Ticket"]);
+      const cCid = mapearColuna(colunas, ["Cidade", "Municipio", "Cid"]);
+      const cUF = mapearColuna(colunas, ["SiglaUF", "UF", "Estado"]);
+      const cRua = mapearColuna(colunas, ["Endereco", "Endereço", "Logradouro", "Rua"]);
+      const cInterv = mapearColuna(colunas, ["Intervencao", "Intervenção", "Tipo"]);
+      const cClie = mapearColuna(colunas, ["Cliente", "NomeCliente", "RazaoSocial", "Aba Cliente", "Empresa"]);
+      const cReg = mapearColuna(colunas, ["Regiao", "Região", "Distrito", "Area", "Zona"]);
+      const cSla = mapearColuna(colunas, ["LimiteAtendimento", "LimiteAtend", "Limite Atendimento", "SLA", "Prazo"]);
+
+      if (!cOS || !cCid || !cUF || !cRua) {
+        alert("❌ Não foi possível encontrar todas as colunas obrigatórias na planilha.");
+        return;
+      }
+
+      const vistos = new Set();
+      dfRaw = [];
+
+      for (const row of jsonRows) {
+        const codOS = String(row[cOS]).split('.')[0].trim();
+        if (!codOS || vistos.has(codOS)) continue;
+        vistos.add(codOS);
+
+        dfRaw.push({
+          CodOS: codOS,
+          Cidade: String(row[cCid]).trim(),
+          SiglaUF: String(row[cUF]).trim(),
+          Endereco: String(row[cRua]).trim(),
+          Intervencao: cInterv && row[cInterv] ? String(row[cInterv]).trim() : "Não Informado",
+          Cliente: cClie && row[cClie] ? String(row[cClie]).trim() : "Não Informado",
+          Regiao: cReg && row[cReg] ? String(row[cReg]).trim() : "Não Informado",
+          SLA: cSla && row[cSla] ? String(row[cSla]).trim() : ""
+        });
+      }
+
+      document.getElementById('empty-state').style.display = 'none';
+      initMap();
+
+      for (const item of dfRaw) {
+        item.pos = await buscarCoordenadas(item.Endereco, item.Cidade, item.SiglaUF);
+      }
+
+      dfFinal = [...dfRaw];
+      popularFiltros(dfFinal);
+      aplicarFiltros();
+
+      document.getElementById('filtros-container').style.display = 'flex';
+      document.getElementById('container-lista').style.display = 'flex';
+      document.getElementById('tabs-bar').style.display = 'flex';
+      document.getElementById('legenda-dinamica').style.display = 'flex';
+    }
+
+    /* =========================================================================
+       8. FILTROS E LISTA LATERAL
+       ========================================================================= */
+    function popularFiltros(dados) {
+      const preencherSelect = (id, valores) => {
+        const select = document.getElementById(id);
+        const atual = select.value;
+        select.innerHTML = '<option value="Todos">Todos</option>';
+        valores.forEach(v => {
+          const opt = document.createElement('option');
+          opt.value = v;
+          opt.textContent = v;
+          select.appendChild(opt);
+        });
+        if (valores.includes(atual)) {
+          select.value = atual;
+        }
+      };
+
+      const intervencoes = [...new Set(dados.map(d => d.Intervencao))].sort();
+      const clientes = [...new Set(dados.map(d => d.Cliente))].sort();
+      const regioes = [...new Set(dados.map(d => d.Regiao))].sort();
+
+      preencherSelect('filtro-intervencao', intervencoes);
+      preencherSelect('filtro-cliente', clientes);
+      preencherSelect('filtro-regiao', regioes);
+    }
+
+    function renderizarLegendaDinamica(dadosFiltrados) {
+      const legContainer = document.getElementById('legenda-dinamica');
+      const ativas = new Set(dadosFiltrados.map(d => d.Intervencao));
+      legContainer.innerHTML = '';
+
+      for (const [tipo, cor] of Object.entries(CORES_INTERVENCAO)) {
+        if (ativas.has(tipo) && tipo !== "Não Informado") {
+          const div = document.createElement('div');
+          div.className = 'legenda-item';
+          div.innerHTML = `<div class="legenda-cor" style="background-color:${cor}; box-shadow:0 0 4px ${cor};"></div><span>${tipo}</span>`;
+          legContainer.appendChild(div);
+        }
+      }
+    }
+
+    function renderizarListaChamados(dados) {
+      const lista = document.getElementById('lista-chamados');
+      const label = document.getElementById('label-chamados');
+      lista.innerHTML = '';
+      label.textContent = `📋 Lista de Chamados (${dados.length})`;
+
+      const busca = document.getElementById('busca-chamado').value.toLowerCase().trim();
+      const filtrados = dados.filter(d => 
+        !busca || 
+        d.CodOS.toLowerCase().includes(busca) || 
+        d.Cidade.toLowerCase().includes(busca) || 
+        d.SiglaUF.toLowerCase().includes(busca)
+      );
+
+      filtrados.sort((a, b) => (a.Cidade + a.CodOS).localeCompare(b.Cidade + b.CodOS));
+
+      filtrados.forEach(ch => {
+        const btn = document.createElement('button');
+        btn.className = 'chamado-item-btn';
+        btn.setAttribute('data-os', ch.CodOS);
+        if (chamadoSelecionado === ch.CodOS) {
+          btn.classList.add('selected');
+        }
+        const cor = CORES_INTERVENCAO[ch.Intervencao] || '#464855';
+        btn.style.borderLeftColor = cor;
+        const prefixo = chamadoSelecionado === ch.CodOS ? "🔷" : "🔵";
+        btn.textContent = `${prefixo} [${ch.Cidade}/${ch.SiglaUF}] OS: ${ch.CodOS}`;
+
+        btn.addEventListener('click', () => {
+          chamadoSelecionado = ch.CodOS;
+          renderizarListaChamados(dfFinal);
+          if (ch.pos) {
+            map.flyTo(ch.pos, 17, { duration: 1.2 });
+            const marker = marcadoresPorOS[ch.CodOS];
+            if (marker) {
+              marcadorAbertoPorClique = marker;
+              marker.openPopup();
+            }
+          }
+        });
+        lista.appendChild(btn);
+      });
+    }
+
+    function aplicarFiltros() {
+      const fInterv = document.getElementById('filtro-intervencao').value;
+      const fClie = document.getElementById('filtro-cliente').value;
+      const fReg = document.getElementById('filtro-regiao').value;
+
+      const filtrados = dfRaw.filter(d => {
+        if (fInterv !== "Todos" && d.Intervencao !== fInterv) return false;
+        if (fClie !== "Todos" && d.Cliente !== fClie) return false;
+        if (fReg !== "Todos" && d.Regiao !== fReg) return false;
+        return true;
+      });
+
+      dfFinal = filtrados;
+      renderizarMarcadores(filtrados);
+      renderizarLegendaDinamica(filtrados);
+      renderizarListaChamados(filtrados);
+      popularMultiSelectDestinos(filtrados);
+    }
+
+    /* =========================================================================
+       9. TRAÇADO DE ROTAS PELAS VIAS (OSRM) + PINS DE LOCALIZAÇÃO GEOGRÁFICA
+       ========================================================================= */
+    function popularMultiSelectDestinos(dados) {
+      const container = document.getElementById('multiselect-list');
+      container.innerHTML = '';
+      
+      const destinosValidos = new Set();
+
+      if (dados.length === 0) {
+        container.innerHTML = '<div style="font-size:11px; color:#888; padding:6px;">Nenhum chamado disponível nesta região/filtro.</div>';
+      } else {
+        dados.forEach(d => {
+          const id = d.CodOS;
+          const label = `[${d.Cidade}/${d.SiglaUF}] OS: ${d.CodOS} - ${d.Cliente} (${d.Regiao})`;
+          destinosValidos.add(id);
+
+          const item = document.createElement('div');
+          item.className = 'multiselect-item';
+
+          const cb = document.createElement('input');
+          cb.type = 'checkbox';
+          cb.value = id;
+          cb.checked = destinosSelecionados.has(id);
+
+          cb.addEventListener('change', (e) => {
+            if (e.target.checked) {
+              destinosSelecionados.add(id);
+            } else {
+              destinosSelecionados.delete(id);
+            }
+            atualizarTextoBotaoMultiSelect();
+          });
+
+          const span = document.createElement('span');
+          span.textContent = label;
+
+          item.appendChild(cb);
+          item.appendChild(span);
+          item.addEventListener('click', (e) => {
+            if (e.target !== cb) {
+              cb.checked = !cb.checked;
+              cb.dispatchEvent(new Event('change'));
+            }
+          });
+
+          container.appendChild(item);
+        });
+      }
+
+      for (const sel of destinosSelecionados) {
+        if (!destinosValidos.has(sel)) {
+          destinosSelecionados.delete(sel);
+        }
+      }
+      atualizarTextoBotaoMultiSelect();
+    }
+
+    function atualizarTextoBotaoMultiSelect() {
+      const btnText = document.getElementById('multiselect-btn-text');
+      const count = destinosSelecionados.size;
+      btnText.textContent = count === 0 
+        ? "🏁 Selecionar Destinos (0)" 
+        : `🏁 ${count} chamado(s) selecionado(s)`;
+    }
+
+    async function buscarRotasOSRM(coordsLngLat) {
+      const coordsString = coordsLngLat.map(c => `${c[0]},${c[1]}`).join(';');
+      const url = `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=geojson&alternatives=true&steps=false`;
+
+      try {
+        const resp = await fetch(url);
+        if (!resp.ok) return null;
+        const data = await resp.json();
+        if (!data.routes || data.routes.length === 0) return null;
+
+        return data.routes.map((r, index) => {
+          const latLngs = r.geometry.coordinates.map(c => [c[1], c[0]]);
+          const distKm = (r.distance / 1000).toFixed(1);
+          const durMin = Math.round(r.duration / 60);
+          const h = Math.floor(durMin / 60);
+          const m = durMin % 60;
+          const durStr = h > 0 ? `${h}h ${m}min` : `${m} min`;
+
+          return {
+            id: index,
+            nome: index === 0 ? "🔵 Rota Principal (Mais rápida)" : `🟢 Rota Alternativa ${index}`,
+            cor: index === 0 ? "#007BFF" : "#2E8B57",
+            coords: latLngs,
+            distKm,
+            durStr
+          };
+        });
+      } catch (err) {
+        console.error("Erro ao buscar rota OSRM:", err);
+        return null;
+      }
+    }
+
+    function selecionarRota(idRota) {
+      rotaPolylines.forEach(item => {
+        if (item.id === idRota) {
+          item.line.setStyle({
+            color: item.corOriginal,
+            weight: 7,
+            opacity: 1.0
+          });
+          item.line.bringToFront();
+        } else {
+          item.line.setStyle({
+            color: "#6b7280",
+            weight: 4,
+            opacity: 0.5
+          });
+        }
+      });
+
+      document.querySelectorAll('.rota-card-option').forEach(card => {
+        if (parseInt(card.getAttribute('data-id')) === idRota) {
+          card.classList.add('active');
+        } else {
+          card.classList.remove('active');
+        }
+      });
+    }
+
+    async function calcularRota() {
+      const saidaStr = document.getElementById('rota-saida').value.trim();
+
+      if (!saidaStr) {
+        alert("❌ Informe a cidade de saída do técnico.");
+        return;
+      }
+      if (destinosSelecionados.size === 0) {
+        alert("❌ Selecione ao menos um chamado de destino.");
+        return;
+      }
+
+      const [cidS, ufS] = saidaStr.split(/[\/-]/).map(s => s.trim());
+      const pA = await buscarCoordenadas("", cidS || saidaStr, ufS || "Brasil");
+      if (!pA) {
+        alert("❌ Não foi possível obter coordenadas para a saída do técnico.");
+        return;
+      }
+
+      const pontosLngLat = [[pA[1], pA[0]]];
+      const chamadosRota = [];
+
+      for (const codOS of destinosSelecionados) {
+        const item = dfRaw.find(d => d.CodOS === codOS);
+        if (item && item.pos) {
+          pontosLngLat.push([item.pos[1], item.pos[0]]);
+          chamadosRota.push(item);
+        }
+      }
+
+      if (chamadosRota.length === 0) {
+        alert("❌ Nenhum dos chamados selecionados possui coordenadas válidas.");
+        return;
+      }
+
+      routesLayer.clearLayers();
+      rotaPolylines = [];
+      rotasCalculadas = [];
+
+      // 1. PIN de Saída do Técnico (Ícone de Casa em formato de gota)
+      const iconePinSaida = L.divIcon({
+        className: '',
+        html: `
+          <div class="map-pin">
+            <svg viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0Z" fill="#2E8B57" stroke="#1E1E1E" stroke-width="1.2"/>
+              <circle cx="12" cy="12" r="8" fill="#ffffff"/>
+              <text x="12" y="15" text-anchor="middle" font-size="10" font-family="Arial" font-weight="bold" fill="#2E8B57">🏠</text>
+            </svg>
+          </div>
+        `,
+        iconSize: [30, 40],
+        iconAnchor: [15, 40],
+        popupAnchor: [0, -36]
+      });
+
+      const markerSaida = L.marker(pA, { icon: iconePinSaida }).bindPopup(`<b>🏠 Saída do Técnico:</b><br>${saidaStr}`);
+      markerSaida.on('mouseover', () => markerSaida.openPopup());
+      markerSaida.on('mouseout', () => markerSaida.closePopup());
+      markerSaida.addTo(routesLayer);
+
+      // 2. PINs de Localização das Paradas (Ponto de localização vermelho/gota)
+      chamadosRota.forEach((item, index) => {
+        const iconePinDestino = L.divIcon({
+          className: '',
+          html: `
+            <div class="map-pin">
+              <svg viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0Z" fill="#FF4B4B" stroke="#1E1E1E" stroke-width="1.2"/>
+                <circle cx="12" cy="12" r="5" fill="#ffffff"/>
+                <circle cx="12" cy="12" r="2.5" fill="#FF4B4B"/>
+              </svg>
+            </div>
+          `,
+          iconSize: [28, 38],
+          iconAnchor: [14, 38],
+          popupAnchor: [0, -34]
+        });
+
+        const markerDest = L.marker(item.pos, { icon: iconePinDestino })
+          .bindPopup(`<b>📍 Parada:</b> [${item.Cidade}/${item.SiglaUF}]<br><b>OS:</b> ${item.CodOS}<br><b>Cliente:</b> ${item.Cliente}`);
+        
+        markerDest.on('mouseover', () => markerDest.openPopup());
+        markerDest.on('mouseout', () => markerDest.closePopup());
+        markerDest.addTo(routesLayer);
+      });
+
+      // Cálculo das rotas pelas vias
+      const rotas = await buscarRotasOSRM(pontosLngLat);
+      const sidebarInfo = document.getElementById('sidebar-rota-info');
+      sidebarInfo.style.display = 'block';
+
+      let htmlSidebar = `<b>🗺️ Rota (${chamadosRota.length} Paradas)</b><br>🏠 <b>Saída:</b> ${saidaStr}<br>`;
+      chamadosRota.forEach((c, idx) => {
+        htmlSidebar += `📍 <b>${idx + 1}.</b> [${c.Cidade}/${c.SiglaUF}] OS: ${c.CodOS}<br>`;
+      });
+      htmlSidebar += `<hr style="margin:8px 0; border:0; border-top:1px solid #3e404f;"><div style="margin-bottom:6px; font-weight:600; color:#fafafa;">Selecione a rota desejada:</div>`;
+
+      if (rotas && rotas.length > 0) {
+        rotasCalculadas = rotas;
+
+        rotas.slice().reverse().forEach(r => {
+          const line = L.polyline(r.coords, {
+            color: r.cor,
+            weight: r.id === 0 ? 7 : 4,
+            opacity: r.id === 0 ? 1.0 : 0.6,
+            lineJoin: 'round'
+          }).bindTooltip(`${r.nome}: ${r.distKm} km · ${r.durStr}`).addTo(routesLayer);
+
+          line.on('click', () => selecionarRota(r.id));
+          rotaPolylines.push({ id: r.id, line, corOriginal: r.cor });
+        });
+
+        rotas.forEach(r => {
+          htmlSidebar += `
+            <div class="rota-card-option ${r.id === 0 ? 'active' : ''}" data-id="${r.id}" onclick="selecionarRota(${r.id})">
+              <div style="font-weight:bold; color:#fafafa; margin-bottom:2px;">${r.nome}</div>
+              <div style="font-size:11px; color:#cbd5e1;">📍 <b>${r.distKm} km</b> &nbsp; ⏱️ <b>${r.durStr}</b></div>
+            </div>
+          `;
+        });
+      } else {
+        const coordsLinha = [pA, ...chamadosRota.map(c => c.pos)];
+        L.polyline(coordsLinha, { color: '#007BFF', weight: 4, dashArray: '8' }).addTo(routesLayer);
+        htmlSidebar += `<div style="color:#FFA500; margin-top:4px;">⚠️ Rota aproximada (conexão com vias indisponível).</div>`;
+      }
+
+      sidebarInfo.innerHTML = htmlSidebar;
+
+      const todasCoords = [pA, ...chamadosRota.map(c => c.pos)];
+      map.fitBounds(todasCoords, { padding: [50, 50] });
+    }
+
+    /* =========================================================================
+       10. EVENT LISTENERS
+       ========================================================================= */
+    document.getElementById('upload-card').addEventListener('click', () => {
+      document.getElementById('file-input').click();
+    });
+
+    document.getElementById('file-input').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (file) {
+        document.getElementById('upload-label').textContent = `Carregado: ${file.name}`;
+        processarPlanilha(file);
+      }
+    });
+
+    document.getElementById('toggle-btn').addEventListener('click', () => {
+      const sidebar = document.getElementById('sidebar');
+      sidebar.classList.toggle('collapsed');
+      const isCollapsed = sidebar.classList.contains('collapsed');
+      document.getElementById('toggle-icon').innerHTML = isCollapsed
+        ? '<polyline points="9 18 15 12 9 6"></polyline>'
+        : '<polyline points="15 18 9 12 15 6"></polyline>';
+      setTimeout(() => { map && map.invalidateSize(); }, 350);
+    });
+
+    // Expander Filtros
+    document.getElementById('expander-filtros-toggle').addEventListener('click', () => {
+      document.getElementById('filtros-container').classList.toggle('open');
+    });
+
+    // Expander Chamados
+    document.getElementById('expander-chamados-toggle').addEventListener('click', () => {
+      document.getElementById('container-lista').classList.toggle('open');
+    });
+
+    document.getElementById('btn-aplicar-filtros').addEventListener('click', aplicarFiltros);
+    document.getElementById('filtro-regiao').addEventListener('change', aplicarFiltros);
+    document.getElementById('filtro-intervencao').addEventListener('change', aplicarFiltros);
+    document.getElementById('filtro-cliente').addEventListener('change', aplicarFiltros);
+
+    document.getElementById('btn-limpar-filtros').addEventListener('click', () => {
+      document.getElementById('filtro-intervencao').value = 'Todos';
+      document.getElementById('filtro-cliente').value = 'Todos';
+      document.getElementById('filtro-regiao').value = 'Todos';
+      aplicarFiltros();
+    });
+
+    document.getElementById('busca-chamado').addEventListener('input', () => {
+      const container = document.getElementById('container-lista');
+      if (!container.classList.contains('open')) {
+        container.classList.add('open');
+      }
+      renderizarListaChamados(dfFinal);
+    });
+
+    // Multi-Select Toggle
+    const multiBtn = document.getElementById('multiselect-btn');
+    const multiList = document.getElementById('multiselect-list');
+
+    multiBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      multiList.classList.toggle('open');
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!document.getElementById('multiselect-dropdown').contains(e.target)) {
+        multiList.classList.remove('open');
+      }
+    });
+
+    // Controle de Abas
+    document.getElementById('tab-geral').addEventListener('click', () => {
+      abaAtiva = "geral";
+      document.getElementById('tab-geral').classList.add('active');
+      document.getElementById('tab-rotas').classList.remove('active');
+      document.getElementById('rota-toolbar').style.display = 'none';
+      routesLayer.clearLayers();
+      document.getElementById('sidebar-rota-info').style.display = 'none';
+      aplicarFiltros();
+    });
+
+    document.getElementById('tab-rotas').addEventListener('click', () => {
+      abaAtiva = "rotas";
+      document.getElementById('tab-rotas').classList.add('active');
+      document.getElementById('tab-geral').classList.remove('active');
+      document.getElementById('rota-toolbar').style.display = 'flex';
+      setTimeout(() => { map && map.invalidateSize(); }, 200);
+      aplicarFiltros();
+    });
+
+    document.getElementById('btn-calc-rota').addEventListener('click', calcularRota);
+  </script>
+</body>
+</html>
