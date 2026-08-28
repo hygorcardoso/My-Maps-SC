@@ -1,7 +1,45 @@
-streamlit
-pandas
-folium
-streamlit-folium
-geopy
-openpyxl
-certifi
+import streamlit as st
+import streamlit.components.v1 as components
+from pathlib import Path
+
+# Configura a página para usar largura total e esconder paddings nativos
+st.set_page_config(
+    page_title="My Maps BR",
+    page_icon="📍",
+    layout="wide",
+    initial_sidebar_state="collapsed"
+)
+
+# Remove margens, paddings e cabeçalho padrão do Streamlit
+st.markdown(
+    """
+    <style>
+        #MainMenu, header, footer { visibility: hidden; }
+        .block-container {
+            padding: 0 !important;
+            margin: 0 !important;
+            max-width: 100% !important;
+            height: 100vh !important;
+            overflow: hidden !important;
+        }
+        iframe {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw !important;
+            height: 100vh !important;
+            border: none;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True
+)
+
+# Carrega e renderiza o arquivo HTML estático
+html_path = Path(__file__).parent / "index.html"
+if html_path.exists():
+    with open(html_path, "r", encoding="utf-8") as f:
+        html_content = f.read()
+    components.html(html_content, height=900, scrolling=False)
+else:
+    st.error("Arquivo index.html não encontrado no repositório.")
