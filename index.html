@@ -37,7 +37,7 @@
       gap: 1.25rem;
       border-right: 1px solid rgba(250, 250, 250, 0.05);
       flex-shrink: 0;
-      transition: width 0.3s ease, padding 0.3s ease;
+      transition: width 0.25s ease, padding 0.25s ease;
       overflow-y: auto;
       overflow-x: hidden;
       z-index: 1000;
@@ -65,7 +65,7 @@
       cursor: pointer;
       z-index: 2000;
       box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-      transition: left 0.3s ease, background-color 0.2s;
+      transition: left 0.25s ease, background-color 0.2s;
     }
 
     aside.collapsed + .toggle-btn {
@@ -94,19 +94,36 @@
       border-bottom: 1px solid rgba(250, 250, 250, 0.1);
     }
 
+    /* Card de Upload e Remoção de Planilha */
+    .upload-card-container {
+      display: flex;
+      flex-direction: column;
+      gap: 0.4rem;
+    }
+
     .upload-card {
       background-color: #1a1c23;
       border: 1px solid rgba(255, 255, 255, 0.1);
       border-radius: 8px;
       padding: 0.75rem 1rem;
       display: flex;
-      flex-direction: column;
-      align-items: flex-start;
+      align-items: center;
+      justify-content: space-between;
       gap: 0.5rem;
       cursor: pointer;
+      transition: border-color 0.2s;
     }
 
     .upload-card:hover { border-color: rgba(255, 255, 255, 0.3); }
+
+    .upload-card-content {
+      display: flex;
+      flex-direction: column;
+      align-items: flex-start;
+      gap: 0.4rem;
+      overflow: hidden;
+      flex: 1;
+    }
 
     .upload-btn {
       display: inline-flex;
@@ -124,6 +141,29 @@
       font-size: 0.7rem;
       color: #7b7e87;
       word-break: break-all;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 100%;
+    }
+
+    .btn-remover-arquivo {
+      display: none;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: #ef4444;
+      border-radius: 6px;
+      width: 32px;
+      height: 32px;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .btn-remover-arquivo:hover {
+      background: #ef4444;
+      color: #ffffff;
     }
 
     /* --- EXPANDER MENUS --- */
@@ -164,7 +204,7 @@
       width: 14px;
       height: 14px;
       color: #9a9ca1;
-      transition: transform 0.25s ease;
+      transition: transform 0.2s ease;
       flex-shrink: 0;
     }
 
@@ -264,7 +304,7 @@
       font-family: monospace;
       border-radius: 4px;
       cursor: pointer;
-      transition: background-color 0.2s, border-color 0.2s;
+      transition: background-color 0.15s;
     }
     .chamado-item-btn:hover { background-color: #31333f; }
     .chamado-item-btn.selected {
@@ -272,7 +312,7 @@
       background-color: #2b3040;
     }
 
-    /* Cards de Rota Selecionáveis na Sidebar */
+    /* Cards de Rota */
     .rota-card-option {
       background: #1a1c23;
       border: 2px solid #3e404f;
@@ -280,7 +320,7 @@
       border-radius: 8px;
       margin-top: 8px;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: border-color 0.15s, background-color 0.15s;
     }
     .rota-card-option:hover {
       border-color: #007BFF;
@@ -297,12 +337,13 @@
       width: 30px;
       height: 40px;
       cursor: grab;
+      will-change: transform;
+      transform: translateZ(0);
     }
     .map-pin:active { cursor: grabbing; }
     .map-pin svg {
       width: 100%;
       height: 100%;
-      filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6));
     }
 
     .via-waypoint-anchor {
@@ -311,12 +352,13 @@
       background-color: #ffffff;
       border: 3px solid #007BFF;
       border-radius: 50%;
-      box-shadow: 0 0 6px rgba(0,0,0,0.6);
       cursor: grab;
+      will-change: transform;
+      transform: translateZ(0);
     }
     .via-waypoint-anchor:active { cursor: grabbing; }
 
-    /* --- BADGE DE TEMPO E KM SOBRE A ROTA (ESTILO GOOGLE MAPS) --- */
+    /* Badge de Tempo e KM */
     .route-label-badge {
       background-color: #1e293b;
       color: #cbd5e1;
@@ -326,21 +368,18 @@
       font-size: 11px;
       font-weight: 600;
       white-space: nowrap;
-      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
       cursor: pointer;
       display: flex;
       align-items: center;
       gap: 5px;
-      transition: all 0.2s ease;
       user-select: none;
+      will-change: transform;
+      transform: translateZ(0);
     }
-    .route-label-badge:hover { transform: scale(1.06); }
     .route-label-badge.active {
       background-color: #007BFF;
       color: #ffffff;
       border-color: #ffffff;
-      box-shadow: 0 4px 14px rgba(0, 123, 255, 0.6);
-      z-index: 1000;
     }
 
     /* --- CONTEÚDO PRINCIPAL --- */
@@ -509,6 +548,8 @@
       justify-content: center;
       font-weight: bold;
       cursor: pointer;
+      will-change: transform;
+      transform: translateZ(0);
     }
 
     .empty-state {
@@ -530,23 +571,35 @@
 
   <!-- Sidebar -->
   <aside id="sidebar">
-    <div class="badge-version">v0.5.2</div>
+    <div class="badge-version">v0.5.3</div>
     <div class="app-title">
       <span>📍</span>
       <span>My Maps BR</span>
     </div>
 
-    <!-- Upload -->
-    <div class="upload-card" id="upload-card">
-      <div class="upload-btn">
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-          <polyline points="17 8 12 3 7 8"></polyline>
-          <line x1="12" y1="3" x2="12" y2="15"></line>
-        </svg>
-        Upload
+    <!-- Upload / Remoção -->
+    <div class="upload-card-container">
+      <div class="upload-card" id="upload-card">
+        <div class="upload-card-content">
+          <div class="upload-btn">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+              <polyline points="17 8 12 3 7 8"></polyline>
+              <line x1="12" y1="3" x2="12" y2="15"></line>
+            </svg>
+            Upload
+          </div>
+          <div class="upload-info" id="upload-label">200MB per file • XLSX</div>
+        </div>
+        <button class="btn-remover-arquivo" id="btn-remover-arquivo" title="Excluir planilha e carregar outra">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+          </svg>
+        </button>
       </div>
-      <div class="upload-info" id="upload-label">200MB per file • XLSX</div>
     </div>
 
     <!-- Filtros Recolhíveis -->
@@ -650,7 +703,7 @@
 
   <script>
     /* =========================================================================
-       1. CONSTANTES, CORES E CONFIGURAÇÕES
+       1. CONSTANTES E CONFIGURAÇÕES
        ========================================================================= */
     const CORES_INTERVENCAO = {
       "Alteração de engenharia": "#4B0082",
@@ -697,6 +750,7 @@
        ========================================================================= */
     let dfRaw = [];
     let dfFinal = [];
+    let chamadosMap = new Map();
     let markersLayer = L.layerGroup();
     let routesLayer = L.layerGroup();
     let map = null;
@@ -709,36 +763,54 @@
     let rotasCalculadas = [];
     let rotaPolylines = [];
 
-    // Estado da Rota Arrastável
     let pontoSaidaCoord = null;
     let paradasChamados = [];
     let waypointsIntermediarios = [];
+    let rotaAbortController = null;
+    let rotaDebounceTimer = null;
+    let buscaDebounceTimer = null;
 
     /* =========================================================================
        3. CACHE LOCAL (localStorage)
        ========================================================================= */
+    let cacheLocalMemoria = null;
+
     function carregarCacheLocal() {
+      if (cacheLocalMemoria) return cacheLocalMemoria;
       try {
-        return JSON.parse(localStorage.getItem("geocodificacao_cache") || "{}");
+        cacheLocalMemoria = JSON.parse(localStorage.getItem("geocodificacao_cache") || "{}");
       } catch {
-        return {};
+        cacheLocalMemoria = {};
       }
+      return cacheLocalMemoria;
     }
 
     function salvarCacheLocal(chave, dados) {
       const cache = carregarCacheLocal();
       cache[chave] = dados;
-      localStorage.setItem("geocodificacao_cache", JSON.stringify(cache));
+      try {
+        localStorage.setItem("geocodificacao_cache", JSON.stringify(cache));
+      } catch (e) {}
     }
 
     /* =========================================================================
-       4. INICIALIZAÇÃO DO MAPA (Leaflet)
+       4. INICIALIZAÇÃO DO MAPA
        ========================================================================= */
     function initMap() {
       if (!map) {
-        map = L.map('map', { zoomControl: true }).setView([-14.2350, -51.9253], 4);
+        map = L.map('map', {
+          zoomControl: true,
+          preferCanvas: true,
+          wheelDebounceTime: 40,
+          wheelPxPerZoomLevel: 80,
+          zoomAnimation: true,
+          fadeAnimation: true
+        }).setView([-14.2350, -51.9253], 4);
+
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
+          updateWhenZooming: false,
+          updateWhenIdle: true,
           attribution: '&copy; OpenStreetMap'
         }).addTo(map);
 
@@ -752,7 +824,7 @@
     }
 
     /* =========================================================================
-       5. GEOCODIFICAÇÃO (Rua, Cidade / Estado)
+       5. GEOCODIFICAÇÃO
        ========================================================================= */
     function normalizar(str) {
       return (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
@@ -778,11 +850,7 @@
       }
 
       const queries = ruaLimpa 
-        ? [
-            `${ruaLimpa}, ${cidLimpa} / ${ufLimpa}`,
-            `${ruaLimpa.split(',')[0]}, ${cidLimpa} / ${ufLimpa}`,
-            `${cidLimpa} / ${ufLimpa}`
-          ]
+        ? [`${ruaLimpa}, ${cidLimpa} / ${ufLimpa}`, `${cidLimpa} / ${ufLimpa}`]
         : [`${cidLimpa} / ${ufLimpa}`, `${cidLimpa}, Brasil`];
 
       for (const q of queries) {
@@ -795,15 +863,22 @@
             salvarCacheLocal(chaveBusca, { lat, lng, cidade: cidLimpa, estado: ufLimpa });
             return [lat, lng];
           }
-        } catch (e) {
-          console.warn("[GEOCODE WARN]", e);
-        }
+        } catch (e) {}
       }
       return null;
     }
 
+    async function processarGeocodificacaoEmLote(itens, tamanhoLote = 6) {
+      for (let i = 0; i < itens.length; i += tamanhoLote) {
+        const lote = itens.slice(i, i + tamanhoLote);
+        await Promise.all(lote.map(async (item) => {
+          item.pos = await buscarCoordenadas(item.Endereco, item.Cidade, item.SiglaUF);
+        }));
+      }
+    }
+
     /* =========================================================================
-       6. PRIORIDADE DE COR & AGRUPAMENTO DE MARCADORES (CHAMADOS)
+       6. MARCADORES E AGRUPAMENTOS
        ========================================================================= */
     function obterCorPrioritaria(intervencoes) {
       const set = new Set(intervencoes.map(i => String(i).trim()));
@@ -834,12 +909,13 @@
       if (!dados || dados.length === 0) return;
 
       const grupos = {};
-      dados.forEach(item => {
-        if (!item.pos) return;
-        const key = `${item.pos[0].toFixed(5)},${item.pos[1].toFixed(5)}`;
+      for (let i = 0; i < dados.length; i++) {
+        const item = dados[i];
+        if (!item.pos) continue;
+        const key = `${item.pos[0].toFixed(4)},${item.pos[1].toFixed(4)}`;
         if (!grupos[key]) grupos[key] = [];
         grupos[key].push(item);
-      });
+      }
 
       const bounds = [];
 
@@ -858,7 +934,7 @@
 
         const customIcon = L.divIcon({
           className: 'custom-cluster-icon',
-          html: `<div style="background-color:${cor}; width:${diam}px; height:${diam}px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:${fonte}px; box-shadow:0 0 8px ${cor};">${total}</div>`,
+          html: `<div style="background-color:${cor}; width:${diam}px; height:${diam}px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:${fonte}px;">${total}</div>`,
           iconSize: [diam, diam],
           iconAnchor: [raio, raio]
         });
@@ -867,13 +943,14 @@
           <b style="color:#FF4B4B;">📍 ${primeiro.Cidade} / ${primeiro.SiglaUF}</b><br>
           <small style="color:#666;">${primeiro.Endereco}</small><hr style="margin:6px 0; border:0; border-top:1px solid #ddd;">`;
 
-        grupo.forEach((ch, idx) => {
+        for (let j = 0; j < grupo.length; j++) {
+          const ch = grupo[j];
           htmlPopup += `<b>Intervenção:</b> ${ch.Intervencao}<br><b>Cliente:</b> ${ch.Cliente}<br><b>Nº Chamado:</b> ${ch.CodOS}<br>`;
           if (ch.SLA && !["S/N", "NAN"].includes(String(ch.SLA).toUpperCase())) {
             htmlPopup += `<b>SLA:</b> ${ch.SLA}<br>`;
           }
-          if (idx < grupo.length - 1) htmlPopup += `<hr style="margin:4px 0; border:0; border-top:1px dashed #eee;">`;
-        });
+          if (j < grupo.length - 1) htmlPopup += `<hr style="margin:4px 0; border:0; border-top:1px dashed #eee;">`;
+        }
 
         htmlPopup += `<div style="margin-top:6px; font-size:11px; font-weight:bold; color:#333;">Total de chamados: ${total}</div></div>`;
 
@@ -891,7 +968,7 @@
 
         marker.on('click', () => {
           marcadorAbertoPorClique = marker;
-          map.flyTo([lat, lng], 17, { duration: 1.2 });
+          map.setView([lat, lng], 17, { animate: true, duration: 0.35 });
           marker.openPopup();
 
           chamadoSelecionado = primeiro.CodOS;
@@ -906,27 +983,29 @@
             if (btnSel) {
               btnSel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             }
-          }, 200);
+          }, 100);
         });
 
         markersLayer.addLayer(marker);
       });
 
       if (bounds.length > 0 && routesLayer.getLayers().length === 0) {
-        map.fitBounds(bounds, { padding: [40, 40] });
+        map.fitBounds(bounds, { padding: [40, 40], animate: false });
       }
     }
 
     /* =========================================================================
-       7. PROCESSAMENTO DO ARQUIVO EXCEL
+       7. PROCESSAMENTO DO EXCEL E RESET COMPLETO DE ARQUIVO
        ========================================================================= */
     function mapearColuna(colunas, alvos) {
+      const alvosUpper = alvos.map(a => a.toUpperCase());
       for (const col of colunas) {
-        if (alvos.map(a => a.toUpperCase()).includes(String(col).trim().toUpperCase())) return col;
+        if (alvosUpper.includes(String(col).trim().toUpperCase())) return col;
       }
       for (const col of colunas) {
+        const colLower = String(col).trim().toLowerCase();
         for (const alvo of alvos) {
-          if (String(col).trim().toLowerCase().includes(alvo.toLowerCase())) return col;
+          if (colLower.includes(alvo.toLowerCase())) return col;
         }
       }
       return null;
@@ -968,13 +1047,15 @@
 
       const vistos = new Set();
       dfRaw = [];
+      chamadosMap.clear();
 
-      for (const row of jsonRows) {
+      for (let i = 0; i < jsonRows.length; i++) {
+        const row = jsonRows[i];
         const codOS = String(row[cOS]).split('.')[0].trim();
         if (!codOS || vistos.has(codOS)) continue;
         vistos.add(codOS);
 
-        dfRaw.push({
+        const item = {
           CodOS: codOS,
           Cidade: String(row[cCid]).trim(),
           SiglaUF: String(row[cUF]).trim(),
@@ -983,15 +1064,17 @@
           Cliente: cClie && row[cClie] ? String(row[cClie]).trim() : "Não Informado",
           Regiao: cReg && row[cReg] ? String(row[cReg]).trim() : "Não Informado",
           SLA: cSla && row[cSla] ? String(row[cSla]).trim() : ""
-        });
+        };
+
+        dfRaw.push(item);
+        chamadosMap.set(codOS, item);
       }
 
       document.getElementById('empty-state').style.display = 'none';
+      document.getElementById('btn-remover-arquivo').style.display = 'inline-flex';
       initMap();
 
-      for (const item of dfRaw) {
-        item.pos = await buscarCoordenadas(item.Endereco, item.Cidade, item.SiglaUF);
-      }
+      await processarGeocodificacaoEmLote(dfRaw, 6);
 
       dfFinal = [...dfRaw];
       popularFiltros(dfFinal);
@@ -1003,8 +1086,48 @@
       document.getElementById('legenda-dinamica').style.display = 'flex';
     }
 
+    // Função de exclusão completa e reset de estado sem recarregar página
+    function removerPlanilhaAtual() {
+      // 1. Limpa variáveis em memória
+      dfRaw = [];
+      dfFinal = [];
+      chamadosMap.clear();
+      destinosSelecionados.clear();
+      rotasCalculadas = [];
+      rotaPolylines = [];
+      pontoSaidaCoord = null;
+      paradasChamados = [];
+      waypointsIntermediarios = [];
+      chamadoSelecionado = null;
+      marcadorAbertoPorClique = null;
+
+      // 2. Limpa camadas do mapa Leaflet
+      if (markersLayer) markersLayer.clearLayers();
+      if (routesLayer) routesLayer.clearLayers();
+      if (map) map.setView([-14.2350, -51.9253], 4);
+
+      // 3. Reseta elementos visuais da UI
+      document.getElementById('file-input').value = '';
+      document.getElementById('upload-label').textContent = '200MB per file • XLSX';
+      document.getElementById('upload-label').style.color = '#7b7e87';
+      document.getElementById('btn-remover-arquivo').style.display = 'none';
+
+      document.getElementById('filtros-container').style.display = 'none';
+      document.getElementById('container-lista').style.display = 'none';
+      document.getElementById('tabs-bar').style.display = 'none';
+      document.getElementById('legenda-dinamica').style.display = 'none';
+      document.getElementById('rota-toolbar').style.display = 'none';
+      document.getElementById('sidebar-rota-info').style.display = 'none';
+      document.getElementById('empty-state').style.display = 'block';
+
+      // 4. Retorna para a aba Visão Geral
+      abaAtiva = 'geral';
+      document.getElementById('tab-geral').classList.add('active');
+      document.getElementById('tab-rotas').classList.remove('active');
+    }
+
     /* =========================================================================
-       8. FILTROS E LISTA LATERAL
+       8. FILTROS E SIDEBAR
        ========================================================================= */
     function popularFiltros(dados) {
       const preencherSelect = (id, valores) => {
@@ -1040,7 +1163,7 @@
         if (ativas.has(tipo) && tipo !== "Não Informado") {
           const div = document.createElement('div');
           div.className = 'legenda-item';
-          div.innerHTML = `<div class="legenda-cor" style="background-color:${cor}; box-shadow:0 0 4px ${cor};"></div><span>${tipo}</span>`;
+          div.innerHTML = `<div class="legenda-cor" style="background-color:${cor};"></div><span>${tipo}</span>`;
           legContainer.appendChild(div);
         }
       }
@@ -1053,16 +1176,20 @@
       label.textContent = `📋 Lista de Chamados (${dados.length})`;
 
       const busca = document.getElementById('busca-chamado').value.toLowerCase().trim();
-      const filtrados = dados.filter(d => 
-        !busca || 
-        d.CodOS.toLowerCase().includes(busca) || 
-        d.Cidade.toLowerCase().includes(busca) || 
-        d.SiglaUF.toLowerCase().includes(busca)
-      );
+      const filtrados = busca 
+        ? dados.filter(d => 
+            d.CodOS.toLowerCase().includes(busca) || 
+            d.Cidade.toLowerCase().includes(busca) || 
+            d.SiglaUF.toLowerCase().includes(busca)
+          )
+        : dados;
 
       filtrados.sort((a, b) => (a.Cidade + a.CodOS).localeCompare(b.Cidade + b.CodOS));
 
-      filtrados.forEach(ch => {
+      const fragment = document.createDocumentFragment();
+
+      for (let i = 0; i < filtrados.length; i++) {
+        const ch = filtrados[i];
         const btn = document.createElement('button');
         btn.className = 'chamado-item-btn';
         btn.setAttribute('data-os', ch.CodOS);
@@ -1078,7 +1205,7 @@
           chamadoSelecionado = ch.CodOS;
           renderizarListaChamados(dfFinal);
           if (ch.pos) {
-            map.flyTo(ch.pos, 17, { duration: 1.2 });
+            map.setView(ch.pos, 17, { animate: true, duration: 0.35 });
             const marker = marcadoresPorOS[ch.CodOS];
             if (marker) {
               marcadorAbertoPorClique = marker;
@@ -1086,8 +1213,10 @@
             }
           }
         });
-        lista.appendChild(btn);
-      });
+        fragment.appendChild(btn);
+      }
+
+      lista.appendChild(fragment);
     }
 
     function aplicarFiltros() {
@@ -1095,33 +1224,34 @@
       const fClie = document.getElementById('filtro-cliente').value;
       const fReg = document.getElementById('filtro-regiao').value;
 
-      const filtrados = dfRaw.filter(d => {
+      dfFinal = dfRaw.filter(d => {
         if (fInterv !== "Todos" && d.Intervencao !== fInterv) return false;
         if (fClie !== "Todos" && d.Cliente !== fClie) return false;
         if (fReg !== "Todos" && d.Regiao !== fReg) return false;
         return true;
       });
 
-      dfFinal = filtrados;
-      renderizarMarcadores(filtrados);
-      renderizarLegendaDinamica(filtrados);
-      renderizarListaChamados(filtrados);
-      popularMultiSelectDestinos(filtrados);
+      renderizarMarcadores(dfFinal);
+      renderizarLegendaDinamica(dfFinal);
+      renderizarListaChamados(dfFinal);
+      popularMultiSelectDestinos(dfFinal);
     }
 
     /* =========================================================================
-       9. TRAÇADO DE ROTAS COM EXIBIÇÃO NO MAPA E NA SIDEBAR
+       9. TRAÇADO DE ROTAS OTIMIZADO
        ========================================================================= */
     function popularMultiSelectDestinos(dados) {
       const container = document.getElementById('multiselect-list');
       container.innerHTML = '';
       
       const destinosValidos = new Set();
+      const fragment = document.createDocumentFragment();
 
       if (dados.length === 0) {
         container.innerHTML = '<div style="font-size:11px; color:#888; padding:6px;">Nenhum chamado disponível nesta região/filtro.</div>';
       } else {
-        dados.forEach(d => {
+        for (let i = 0; i < dados.length; i++) {
+          const d = dados[i];
           const id = d.CodOS;
           const label = `[${d.Cidade}/${d.SiglaUF}] OS: ${d.CodOS} - ${d.Cliente} (${d.Regiao})`;
           destinosValidos.add(id);
@@ -1155,8 +1285,9 @@
             }
           });
 
-          container.appendChild(item);
-        });
+          fragment.appendChild(item);
+        }
+        container.appendChild(fragment);
       }
 
       for (const sel of destinosSelecionados) {
@@ -1178,7 +1309,9 @@
     function decodePolyline6(str) {
       let index = 0, lat = 0, lng = 0, coordinates = [], shift = 0, result = 0, byte = null, latitude_change, longitude_change;
       const factor = 1e6;
-      while (index < str.length) {
+      const len = str.length;
+
+      while (index < len) {
         byte = null; shift = 0; result = 0;
         do {
           byte = str.charCodeAt(index++) - 63;
@@ -1201,14 +1334,20 @@
     }
 
     async function buscarRotasOSRM(coordsLngLat) {
+      if (rotaAbortController) {
+        rotaAbortController.abort();
+      }
+      rotaAbortController = new AbortController();
+
       const coordsString = coordsLngLat.map(c => `${c[0]},${c[1]}`).join(';');
       const url = `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=polyline6&alternatives=true&steps=false`;
 
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 6000);
+      const timeoutId = setTimeout(() => {
+        if (rotaAbortController) rotaAbortController.abort();
+      }, 5000);
 
       try {
-        const resp = await fetch(url, { signal: controller.signal });
+        const resp = await fetch(url, { signal: rotaAbortController.signal });
         clearTimeout(timeoutId);
         if (!resp.ok) return null;
         const data = await resp.json();
@@ -1236,7 +1375,6 @@
           };
         });
       } catch (err) {
-        console.warn("Falha no servidor de rotas:", err);
         return null;
       }
     }
@@ -1269,24 +1407,27 @@
         rotas.slice().reverse().forEach(r => {
           const borderLine = L.polyline(r.coords, {
             color: '#0f172a',
-            weight: r.id === 0 ? 9 : 6,
-            opacity: r.id === 0 ? 0.85 : 0.35,
+            weight: r.id === 0 ? 8 : 5,
+            opacity: r.id === 0 ? 0.8 : 0.3,
+            smoothFactor: 1.5,
             lineJoin: 'round',
             lineCap: 'round'
           }).addTo(routesLayer);
 
           const line = L.polyline(r.coords, {
             color: r.cor,
-            weight: r.id === 0 ? 6 : 4,
+            weight: r.id === 0 ? 5 : 3.5,
             opacity: r.id === 0 ? 1.0 : 0.6,
+            smoothFactor: 1.5,
             lineJoin: 'round',
             lineCap: 'round'
           }).bindTooltip(`${r.nome}: ${r.distKm} km · ${r.durStr}`).addTo(routesLayer);
 
           const hitLine = L.polyline(r.coords, {
             color: 'transparent',
-            weight: 22,
+            weight: 20,
             opacity: 0,
+            smoothFactor: 2.0,
             cursor: 'crosshair'
           }).addTo(routesLayer);
 
@@ -1294,10 +1435,9 @@
             const novaLat = e.latlng.lat;
             const novaLng = e.latlng.lng;
             waypointsIntermediarios.push([novaLat, novaLng]);
-            recalcularTraçadoRotas();
+            agendarRecalculoRota();
           });
 
-          // 1. Badge flutuante sobre a linha no Mapa (Estilo Maps)
           const badgeIcon = L.divIcon({
             className: '',
             html: `
@@ -1319,7 +1459,6 @@
           rotaPolylines.push({ id: r.id, line, borderLine, hitLine, badgeMarker, corOriginal: r.cor });
         });
 
-        // Âncoras manuais arrastáveis
         waypointsIntermediarios.forEach((wCoord, wIdx) => {
           const iconeAnchor = L.divIcon({
             className: 'via-waypoint-anchor',
@@ -1334,16 +1473,15 @@
           wMarker.on('dragend', (e) => {
             const pos = e.target.getLatLng();
             waypointsIntermediarios[wIdx] = [pos.lat, pos.lng];
-            recalcularTraçadoRotas();
+            agendarRecalculoRota();
           });
 
           wMarker.on('dblclick', () => {
             waypointsIntermediarios.splice(wIdx, 1);
-            recalcularTraçadoRotas();
+            agendarRecalculoRota();
           });
         });
 
-        // 2. Painel Informativo na Barra Lateral (Sidebar)
         const sidebarInfo = document.getElementById('sidebar-rota-info');
         const saidaStr = document.getElementById('rota-saida').value.trim();
         let htmlSidebar = `<b>🗺️ Rota (${paradasChamados.length} Paradas)</b><br>🏠 <b>Saída:</b> ${saidaStr}<br>`;
@@ -1367,27 +1505,25 @@
       }
     }
 
+    function agendarRecalculoRota() {
+      clearTimeout(rotaDebounceTimer);
+      rotaDebounceTimer = setTimeout(() => {
+        recalcularTraçadoRotas();
+      }, 120);
+    }
+
     function selecionarRota(idRota) {
       rotaPolylines.forEach(item => {
         if (item.id === idRota) {
-          item.line.setStyle({
-            color: item.corOriginal,
-            weight: 6,
-            opacity: 1.0
-          });
-          if (item.borderLine) item.borderLine.setStyle({ opacity: 0.85 });
+          item.line.setStyle({ color: item.corOriginal, weight: 5, opacity: 1.0 });
+          if (item.borderLine) item.borderLine.setStyle({ opacity: 0.8 });
           item.line.bringToFront();
         } else {
-          item.line.setStyle({
-            color: "#64748b",
-            weight: 4,
-            opacity: 0.45
-          });
+          item.line.setStyle({ color: "#64748b", weight: 3.5, opacity: 0.45 });
           if (item.borderLine) item.borderLine.setStyle({ opacity: 0.2 });
         }
       });
 
-      // Atualiza os Badges flutuantes no mapa
       document.querySelectorAll('.route-label-badge').forEach(badge => {
         if (parseInt(badge.getAttribute('data-badge-id')) === idRota) {
           badge.classList.add('active');
@@ -1396,7 +1532,6 @@
         }
       });
 
-      // Atualiza os cards na sidebar
       document.querySelectorAll('.rota-card-option').forEach(card => {
         if (parseInt(card.getAttribute('data-id')) === idRota) {
           card.classList.add('active');
@@ -1433,7 +1568,7 @@
 
         const chamadosRota = [];
         for (const codOS of destinosSelecionados) {
-          const item = dfRaw.find(d => d.CodOS === codOS);
+          const item = chamadosMap.get(codOS);
           if (item && item.pos) {
             chamadosRota.push(item);
           }
@@ -1452,7 +1587,6 @@
         rotaPolylines = [];
         rotasCalculadas = [];
 
-        // Pin de Saída do Técnico
         const iconePinSaida = L.divIcon({
           className: '',
           html: `
@@ -1475,11 +1609,10 @@
         markerSaida.on('dragend', (e) => {
           const pos = e.target.getLatLng();
           pontoSaidaCoord = [pos.lat, pos.lng];
-          recalcularTraçadoRotas();
+          agendarRecalculoRota();
         });
         markerSaida.addTo(routesLayer);
 
-        // Pins das Paradas
         chamadosRota.forEach((item, idx) => {
           const iconePinDestino = L.divIcon({
             className: '',
@@ -1505,7 +1638,7 @@
           markerDest.on('dragend', (e) => {
             const pos = e.target.getLatLng();
             paradasChamados[idx].pos = [pos.lat, pos.lng];
-            recalcularTraçadoRotas();
+            agendarRecalculoRota();
           });
           markerDest.addTo(routesLayer);
         });
@@ -1513,7 +1646,7 @@
         await recalcularTraçadoRotas();
 
         const todasCoords = [pA, ...chamadosRota.map(c => c.pos)];
-        map.fitBounds(todasCoords, { padding: [50, 50] });
+        map.fitBounds(todasCoords, { padding: [50, 50], animate: false });
       } finally {
         btnCalc.disabled = false;
         btnCalcTexto.textContent = "🚀 Calcular Rota";
@@ -1523,14 +1656,23 @@
     /* =========================================================================
        10. EVENT LISTENERS
        ========================================================================= */
-    document.getElementById('upload-card').addEventListener('click', () => {
-      document.getElementById('file-input').click();
+    document.getElementById('upload-card').addEventListener('click', (e) => {
+      // Evita disparar o seletor de arquivo se clicar diretamente no botão de remover
+      if (!document.getElementById('btn-remover-arquivo').contains(e.target)) {
+        document.getElementById('file-input').click();
+      }
+    });
+
+    document.getElementById('btn-remover-arquivo').addEventListener('click', (e) => {
+      e.stopPropagation();
+      removerPlanilhaAtual();
     });
 
     document.getElementById('file-input').addEventListener('change', (e) => {
       const file = e.target.files[0];
       if (file) {
         document.getElementById('upload-label').textContent = `Carregado: ${file.name}`;
+        document.getElementById('upload-label').style.color = '#00c853';
         processarPlanilha(file);
       }
     });
@@ -1542,15 +1684,13 @@
       document.getElementById('toggle-icon').innerHTML = isCollapsed
         ? '<polyline points="9 18 15 12 9 6"></polyline>'
         : '<polyline points="15 18 9 12 15 6"></polyline>';
-      setTimeout(() => { map && map.invalidateSize(); }, 350);
+      setTimeout(() => { map && map.invalidateSize(); }, 250);
     });
 
-    // Expander Filtros
     document.getElementById('expander-filtros-toggle').addEventListener('click', () => {
       document.getElementById('filtros-container').classList.toggle('open');
     });
 
-    // Expander Chamados
     document.getElementById('expander-chamados-toggle').addEventListener('click', () => {
       document.getElementById('container-lista').classList.toggle('open');
     });
@@ -1568,14 +1708,16 @@
     });
 
     document.getElementById('busca-chamado').addEventListener('input', () => {
-      const container = document.getElementById('container-lista');
-      if (!container.classList.contains('open')) {
-        container.classList.add('open');
-      }
-      renderizarListaChamados(dfFinal);
+      clearTimeout(buscaDebounceTimer);
+      buscaDebounceTimer = setTimeout(() => {
+        const container = document.getElementById('container-lista');
+        if (!container.classList.contains('open')) {
+          container.classList.add('open');
+        }
+        renderizarListaChamados(dfFinal);
+      }, 150);
     });
 
-    // Multi-Select Toggle
     const multiBtn = document.getElementById('multiselect-btn');
     const multiList = document.getElementById('multiselect-list');
 
@@ -1590,7 +1732,6 @@
       }
     });
 
-    // Controle de Abas
     document.getElementById('tab-geral').addEventListener('click', () => {
       abaAtiva = "geral";
       document.getElementById('tab-geral').classList.add('active');
@@ -1598,7 +1739,7 @@
       document.getElementById('rota-toolbar').style.display = 'none';
       routesLayer.clearLayers();
       document.getElementById('sidebar-rota-info').style.display = 'none';
-      aplicarFiltros();
+      renderizarMarcadores(dfFinal);
     });
 
     document.getElementById('tab-rotas').addEventListener('click', () => {
@@ -1606,8 +1747,7 @@
       document.getElementById('tab-rotas').classList.add('active');
       document.getElementById('tab-geral').classList.remove('active');
       document.getElementById('rota-toolbar').style.display = 'flex';
-      setTimeout(() => { map && map.invalidateSize(); }, 200);
-      aplicarFiltros();
+      setTimeout(() => { map && map.invalidateSize(); }, 100);
     });
 
     document.getElementById('btn-calc-rota').addEventListener('click', calcularRota);
