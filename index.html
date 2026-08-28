@@ -267,6 +267,34 @@
     .btn-primary:hover { background-color: #0056b3; }
     .btn-primary:disabled { background-color: #3b3d4a; cursor: not-allowed; }
 
+    .btn-sugerir-rotas {
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: #ffffff;
+      border: none;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
+      transition: all 0.2s ease;
+    }
+    .btn-sugerir-rotas:hover {
+      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+      box-shadow: 0 6px 18px rgba(99, 102, 241, 0.5);
+      transform: translateY(-1px);
+    }
+    .btn-sugerir-rotas:disabled {
+      background: #3b3d4a;
+      box-shadow: none;
+      cursor: not-allowed;
+      transform: none;
+    }
+
     .btn-secondary {
       flex: 1;
       background-color: #3b3d4a;
@@ -312,8 +340,8 @@
       background-color: #2b3040;
     }
 
-    /* Cards de Rota */
-    .rota-card-option {
+    /* Cards de Dias de Rotas */
+    .dia-card-option {
       background: #1a1c23;
       border: 2px solid #3e404f;
       padding: 10px 12px;
@@ -322,20 +350,20 @@
       cursor: pointer;
       transition: border-color 0.15s, background-color 0.15s;
     }
-    .rota-card-option:hover {
-      border-color: #007BFF;
+    .dia-card-option:hover {
+      border-color: #6366f1;
       background: #22252e;
     }
-    .rota-card-option.active {
-      border-color: #007BFF;
-      background: #007BFF1a;
+    .dia-card-option.active {
+      border-color: #6366f1;
+      background: rgba(99, 102, 241, 0.15);
     }
 
-    /* Pins e Âncoras */
+    /* Pins e Marcadores */
     .map-pin {
       position: relative;
-      width: 30px;
-      height: 40px;
+      width: 34px;
+      height: 42px;
       cursor: grab;
       will-change: transform;
       transform: translateZ(0);
@@ -346,19 +374,6 @@
       height: 100%;
     }
 
-    .via-waypoint-anchor {
-      width: 14px;
-      height: 14px;
-      background-color: #ffffff;
-      border: 3px solid #007BFF;
-      border-radius: 50%;
-      cursor: grab;
-      will-change: transform;
-      transform: translateZ(0);
-    }
-    .via-waypoint-anchor:active { cursor: grabbing; }
-
-    /* Badge de Tempo e KM */
     .route-label-badge {
       background-color: #1e293b;
       color: #cbd5e1;
@@ -420,7 +435,6 @@
       color: #FFFFFF;
     }
 
-    /* --- TOOLBAR DE ROTAS --- */
     .rota-toolbar {
       display: none;
       gap: 10px;
@@ -571,7 +585,7 @@
 
   <!-- Sidebar -->
   <aside id="sidebar">
-    <div class="badge-version">v0.5.3</div>
+    <div class="badge-version">v0.6.0 (Brasil Completo)</div>
     <div class="app-title">
       <span>📍</span>
       <span>My Maps BR</span>
@@ -602,6 +616,15 @@
       </div>
     </div>
 
+    <!-- Botão Sugerir Melhores Rotas -->
+    <button class="btn-sugerir-rotas" id="btn-sugerir-rotas-sidebar" style="display: none;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10"></circle>
+        <polyline points="12 6 12 12 16 14"></polyline>
+      </svg>
+      <span>🧠 Rotas Diárias de 5 Horas</span>
+    </button>
+
     <!-- Filtros Recolhíveis -->
     <div class="expander-container" id="filtros-container" style="display: none;">
       <div class="expander-header" id="expander-filtros-toggle">
@@ -623,7 +646,7 @@
         </div>
 
         <div>
-          <label>Região:</label>
+          <label>Região / Estado:</label>
           <select id="filtro-regiao"><option value="Todos">Todos</option></select>
         </div>
 
@@ -644,7 +667,7 @@
       </div>
 
       <div class="expander-body">
-        <input type="text" id="busca-chamado" placeholder="🔍 Ex: PR ou Curitiba..." />
+        <input type="text" id="busca-chamado" placeholder="🔍 Ex: SP, Salvador ou 12345..." />
         <div class="lista-chamados-container" id="lista-chamados"></div>
       </div>
     </div>
@@ -669,7 +692,7 @@
 
     <!-- Toolbar de Rotas -->
     <div class="rota-toolbar" id="rota-toolbar">
-      <input type="text" id="rota-saida" placeholder="🏠 Saída (ex: Videira - SC)" style="flex: 1.5;" />
+      <input type="text" id="rota-saida" placeholder="🏠 Saída (ex: São Paulo - SP ou Videira - SC)" style="flex: 1.5;" />
       
       <!-- Multi-Select Dropdown -->
       <div class="multiselect-dropdown" id="multiselect-dropdown">
@@ -703,8 +726,88 @@
 
   <script>
     /* =========================================================================
-       1. CONSTANTES E CONFIGURAÇÕES
+       1. CENTROIDES OFICIAIS DOS 27 ESTADOS DO BRASIL (FALLBACK SEGURO)
        ========================================================================= */
+    const CENTROIDES_ESTADOS_BR = {
+      "AC": [-8.77, -70.55],
+      "AL": [-9.71, -35.73],
+      "AM": [-3.07, -61.66],
+      "AP": [1.41, -51.77],
+      "BA": [-12.96, -38.51],
+      "CE": [-3.71, -38.54],
+      "DF": [-15.78, -47.93],
+      "ES": [-19.19, -40.34],
+      "GO": [-16.64, -49.31],
+      "MA": [-2.55, -44.30],
+      "MG": [-18.10, -44.38],
+      "MS": [-20.51, -54.54],
+      "MT": [-12.64, -55.42],
+      "PA": [-5.53, -52.29],
+      "PB": [-7.06, -35.55],
+      "PE": [-8.28, -35.07],
+      "PI": [-8.28, -43.68],
+      "PR": [-24.89, -51.55],
+      "RJ": [-22.84, -43.15],
+      "RN": [-5.22, -36.52],
+      "RO": [-11.22, -62.80],
+      "RR": [1.89, -61.22],
+      "RS": [-30.01, -51.22],
+      "SC": [-27.33, -49.44],
+      "SE": [-10.90, -37.07],
+      "SP": [-23.55, -46.64],
+      "TO": [-10.25, -48.25]
+    };
+
+    /* =========================================================================
+       2. BASE NACIONAL DE CIDADES E CAPITAIS DO BRASIL (0ms)
+       ========================================================================= */
+    const BASE_CIDADES_BRASIL = {
+      // CAPITAIS E GRANDES POLOS (NACIONAL)
+      "SAO PAULO-SP": [-23.5505, -46.6333], "RIO DE JANEIRO-RJ": [-22.9068, -43.1729],
+      "BELO HORIZONTE-MG": [-19.9167, -43.9345], "BRASILIA-DF": [-15.7801, -47.9292],
+      "SALVADOR-BA": [-12.9714, -38.5014], "FORTALEZA-CE": [-3.7172, -38.5433],
+      "RECIFE-PE": [-8.0578, -34.8778], "CURITIBA-PR": [-25.4284, -49.2733],
+      "PORTO ALEGRE-RS": [-30.0346, -51.2177], "MANAUS-AM": [-3.1190, -60.0217],
+      "BELEM-PA": [-1.4558, -48.4902], "GOIANIA-GO": [-16.6869, -49.2648],
+      "CAMPO GRANDE-MS": [-20.4697, -54.6201], "CUIABA-MT": [-15.6010, -56.0974],
+      "SAO LUIS-MA": [-2.5307, -44.3068], "MACEIO-AL": [-9.6658, -35.7351],
+      "NATAL-RN": [-5.7945, -35.2110], "TERESINA-PI": [-5.0919, -42.8034],
+      "JOAO PESSOA-PB": [-7.1150, -34.8641], "ARACAJU-SE": [-10.9472, -37.0731],
+      "FLORIANOPOLIS-SC": [-27.5954, -48.5480], "PORTO VELHO-RO": [-8.7619, -63.9039],
+      "MACAPA-AP": [0.0356, -51.0705], "RIO BRANCO-AC": [-9.9749, -67.8243],
+      "VITORIA-ES": [-20.3155, -40.3128], "BOA VISTA-RR": [2.8235, -60.6758],
+      "PALMAS-TO": [-10.1844, -48.3336],
+
+      // SÃO PAULO
+      "CAMPINAS-SP": [-22.9099, -47.0626], "GUARULHOS-SP": [-23.4542, -46.5333],
+      "SAO BERNARDO DO CAMPO-SP": [-23.6944, -46.5653], "SANTO ANDRE-SP": [-23.6639, -46.5383],
+      "OSASCO-SP": [-23.5329, -46.7920], "SOROCABA-SP": [-23.5015, -47.4526],
+      "RIBEIRAO PRETO-SP": [-21.1767, -47.8208], "SAO JOSE DOS CAMPOS-SP": [-23.1791, -45.8872],
+      "SANTOS-SP": [-23.9608, -46.3336], "SAO JOSE DO RIO PRETO-SP": [-20.8113, -49.3758],
+      "BAURU-SP": [-22.3145, -49.0587], "PIRACICABA-SP": [-22.7338, -47.6476],
+      "FRANCA-SP": [-20.5386, -47.4008], "JUNDIAI-SP": [-23.1857, -46.8978],
+
+      // RIO DE JANEIRO & MINAS GERAIS
+      "DUQUE DE CAXIAS-RJ": [-22.7856, -43.3117], "NITEROI-RJ": [-22.8833, -43.1036],
+      "SAO GONCALO-RJ": [-22.8268, -43.0537], "NOVA IGUACU-RJ": [-22.7556, -43.4603],
+      "CAMPOS DOS GOYTACAZES-RJ": [-21.7545, -41.3244], "VOLTA REDONDA-RJ": [-22.5231, -44.1042],
+      "UBERLANDIA-MG": [-18.9186, -48.2772], "CONTAGEM-MG": [-19.9386, -44.0536],
+      "JUIZ DE FORA-MG": [-21.7587, -43.3496], "BETIM-MG": [-19.9678, -44.1983],
+      "MONTES CLAROS-MG": [-16.7282, -43.8617], "UBERABA-MG": [-19.7472, -47.9392],
+
+      // SUL (SC, PR, RS)
+      "CONCORDIA-SC": [-27.2342, -52.0286], "CHAPECO-SC": [-27.1004, -52.6152],
+      "VIDEIRA-SC": [-27.0084, -51.1528], "JOACABA-SC": [-27.1751, -51.5042],
+      "CACADOR-SC": [-26.7753, -51.0125], "ZORTEA-SC": [-27.4514, -51.5542],
+      "JOINVILLE-SC": [-26.3045, -48.8487], "BLUMENAU-SC": [-26.9194, -49.0661],
+      "ITAJAI-SC": [-26.9078, -48.6619], "CRICIUMA-SC": [-28.6775, -49.3704],
+      "LAGES-SC": [-27.8161, -50.3260], "CASCAVEL-PR": [-24.9578, -53.4595],
+      "LONDRINA-PR": [-23.3045, -51.1696], "MARINGA-PR": [-23.4209, -51.9331],
+      "FOZ DO IGUACU-PR": [-25.5163, -54.5854], "PASSO FUNDO-RS": [-28.2628, -52.4067],
+      "CAXIAS DO SUL-RS": [-29.1678, -51.1794], "PELOTAS-RS": [-31.7654, -52.3376],
+      "SANTA MARIA-RS": [-29.6842, -53.8069]
+    };
+
     const CORES_INTERVENCAO = {
       "Alteração de engenharia": "#4B0082",
       "Autorização de deslocamento": "#4682B4",
@@ -730,23 +833,12 @@
       "Não Informado": "#464855"
     };
 
-    const EXCECOES_CIDADES = {
-      "ZORTEA-SC": [-27.4514, -51.5542],
-      "CHAPECO-SC": [-27.1004, -52.6152],
-      "CHAPECÓ-SC": [-27.1004, -52.6152],
-      "NAVEGANTES-SC": [-26.8914, -48.6548],
-      "SAO JOSE-SC": [-27.6146, -48.6353],
-      "SÃO JOSÉ-SC": [-27.6146, -48.6353],
-      "CAMPO GRANDE-MS": [-20.4697, -54.6201],
-      "CAMPO GRANDO-MS": [-20.4697, -54.6201],
-      "PARANAIBA-MS": [-19.7942, -51.1809],
-      "PARANAÍBA-MS": [-19.7942, -51.1809],
-      "SAO CRISTOVAO DO SUL-SC": [-27.2666, -50.4388],
-      "LUZERNA-SC": [-27.1304, -51.4682]
-    };
+    const CORES_DIAS = ["#007BFF", "#10B981", "#8B5CF6", "#F59E0B", "#06B6D4", "#EC4899", "#6366F1"];
+    const TEMPO_MEDIO_ATENDIMENTO_MIN = 45; 
+    const LIMITE_DIARIO_MINUTOS = 300; 
 
     /* =========================================================================
-       2. ESTADO GLOBAL DA APLICAÇÃO
+       3. ESTADO GLOBAL
        ========================================================================= */
     let dfRaw = [];
     let dfFinal = [];
@@ -755,43 +847,16 @@
     let routesLayer = L.layerGroup();
     let map = null;
     let abaAtiva = "geral";
-    let coordsSessao = {};
     let chamadoSelecionado = null;
     let marcadoresPorOS = {};
     let destinosSelecionados = new Set();
     let marcadorAbertoPorClique = null;
-    let rotasCalculadas = [];
-    let rotaPolylines = [];
 
     let pontoSaidaCoord = null;
-    let paradasChamados = [];
-    let waypointsIntermediarios = [];
+    let rotasPorDia = [];
+    let rotaPolylinesPorDia = [];
     let rotaAbortController = null;
-    let rotaDebounceTimer = null;
     let buscaDebounceTimer = null;
-
-    /* =========================================================================
-       3. CACHE LOCAL (localStorage)
-       ========================================================================= */
-    let cacheLocalMemoria = null;
-
-    function carregarCacheLocal() {
-      if (cacheLocalMemoria) return cacheLocalMemoria;
-      try {
-        cacheLocalMemoria = JSON.parse(localStorage.getItem("geocodificacao_cache") || "{}");
-      } catch {
-        cacheLocalMemoria = {};
-      }
-      return cacheLocalMemoria;
-    }
-
-    function salvarCacheLocal(chave, dados) {
-      const cache = carregarCacheLocal();
-      cache[chave] = dados;
-      try {
-        localStorage.setItem("geocodificacao_cache", JSON.stringify(cache));
-      } catch (e) {}
-    }
 
     /* =========================================================================
        4. INICIALIZAÇÃO DO MAPA
@@ -802,15 +867,11 @@
           zoomControl: true,
           preferCanvas: true,
           wheelDebounceTime: 40,
-          wheelPxPerZoomLevel: 80,
-          zoomAnimation: true,
-          fadeAnimation: true
-        }).setView([-14.2350, -51.9253], 4);
+          wheelPxPerZoomLevel: 80
+        }).setView([-14.2350, -51.9253], 4); // Visão Panorâmica de todo o Brasil
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
-          updateWhenZooming: false,
-          updateWhenIdle: true,
           attribution: '&copy; OpenStreetMap'
         }).addTo(map);
 
@@ -824,61 +885,74 @@
     }
 
     /* =========================================================================
-       5. GEOCODIFICAÇÃO
+       5. MOTOR DE RESOLUÇÃO GEOGRÁFICA NACIONAL
        ========================================================================= */
     function normalizar(str) {
-      return (str || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toUpperCase().trim();
+      return (str || "")
+        .toString()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-zA-Z0-9]/g, " ")
+        .toUpperCase()
+        .trim();
     }
 
-    async function buscarCoordenadas(rua, cid, uf) {
-      const ruaLimpa = (rua || "").trim();
-      const cidLimpa = (cid || "").trim();
-      const ufLimpa = (uf || "").trim();
+    function coordenadaValidaBrasil(lat, lng) {
+      return (lat <= 6.0 && lat >= -34.5 && lng >= -74.5 && lng <= -32.0);
+    }
 
-      const chaveBusca = ruaLimpa ? `${ruaLimpa}, ${cidLimpa} / ${ufLimpa}`.toUpperCase().trim() : `${cidLimpa} / ${ufLimpa}`.toUpperCase().trim();
-      const chaveExcecao = `${normalizar(cidLimpa)}-${normalizar(ufLimpa)}`;
+    function extrairSiglaUFValida(textoUF, textoCidade = "") {
+      const ufsValidas = Object.keys(CENTROIDES_ESTADOS_BR);
+      const ufNorm = normalizar(textoUF).replace(/\s+/g, '');
+      
+      if (ufsValidas.includes(ufNorm)) return ufNorm;
 
-      if (EXCECOES_CIDADES[chaveExcecao]) {
-        return EXCECOES_CIDADES[chaveExcecao];
+      // Tenta extrair caso o estado venha no final da cidade (ex: "Campinas / SP" ou "Campinas - SP")
+      const cidNorm = normalizar(textoCidade);
+      for (const uf of ufsValidas) {
+        if (cidNorm.endsWith(` ${uf}`) || cidNorm.endsWith(`/${uf}`) || cidNorm.endsWith(`-${uf}`)) {
+          return uf;
+        }
       }
 
-      if (coordsSessao[chaveBusca]) return coordsSessao[chaveBusca];
-      const cacheLocal = carregarCacheLocal();
-      if (cacheLocal[chaveBusca]) {
-        coordsSessao[chaveBusca] = [cacheLocal[chaveBusca].lat, cacheLocal[chaveBusca].lng];
-        return coordsSessao[chaveBusca];
-      }
+      return "SP"; // Fallback neutro no centro econômico caso a coluna venha vazia
+    }
 
-      const queries = ruaLimpa 
-        ? [`${ruaLimpa}, ${cidLimpa} / ${ufLimpa}`, `${cidLimpa} / ${ufLimpa}`]
-        : [`${cidLimpa} / ${ufLimpa}`, `${cidLimpa}, Brasil`];
+    function resolverCoordenadaNacional(cidade, uf, index = 0) {
+      const cidNorm = normalizar(cidade).replace(/\s+/g, ' ');
+      const siglaUF = extrairSiglaUFValida(uf, cidade);
+      const chaveCompleta = `${cidNorm}-${siglaUF}`;
 
-      for (const q of queries) {
-        try {
-          const resp = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(q)}&limit=1`);
-          const json = await resp.json();
-          if (json.features && json.features.length > 0) {
-            const [lng, lat] = json.features[0].geometry.coordinates;
-            coordsSessao[chaveBusca] = [lat, lng];
-            salvarCacheLocal(chaveBusca, { lat, lng, cidade: cidLimpa, estado: ufLimpa });
-            return [lat, lng];
+      let baseCoord = null;
+
+      // 1. Busca no Dicionário Nacional de Cidades
+      if (BASE_CIDADES_BRASIL[chaveCompleta]) {
+        baseCoord = BASE_CIDADES_BRASIL[chaveCompleta];
+      } else {
+        for (const [k, v] of Object.entries(BASE_CIDADES_BRASIL)) {
+          if (k.startsWith(cidNorm) || cidNorm.startsWith(k.split('-')[0])) {
+            baseCoord = v;
+            break;
           }
-        } catch (e) {}
+        }
       }
-      return null;
-    }
 
-    async function processarGeocodificacaoEmLote(itens, tamanhoLote = 6) {
-      for (let i = 0; i < itens.length; i += tamanhoLote) {
-        const lote = itens.slice(i, i + tamanhoLote);
-        await Promise.all(lote.map(async (item) => {
-          item.pos = await buscarCoordenadas(item.Endereco, item.Cidade, item.SiglaUF);
-        }));
+      // 2. Se for um município do interior não listado, usa o centróide do respectivo estado
+      if (!baseCoord) {
+        baseCoord = CENTROIDES_ESTADOS_BR[siglaUF] || [-15.78, -47.93];
       }
+
+      // 3. Aplica uma dispersão sutil em espiral para os chamados não colidirem
+      const angulo = index * 1.618 * Math.PI * 2;
+      const raioOffset = (index % 10) * 0.0035;
+      const offsetLat = Math.sin(angulo) * raioOffset;
+      const offsetLng = Math.cos(angulo) * raioOffset;
+
+      return [baseCoord[0] + offsetLat, baseCoord[1] + offsetLng];
     }
 
     /* =========================================================================
-       6. MARCADORES E AGRUPAMENTOS
+       6. MARCADORES NO MAPA
        ========================================================================= */
     function obterCorPrioritaria(intervencoes) {
       const set = new Set(intervencoes.map(i => String(i).trim()));
@@ -902,7 +976,7 @@
       return CORES_INTERVENCAO[first] || "#FF4B4B";
     }
 
-    function renderizarMarcadores(dados) {
+    function renderizarMarcadores(dados, ajustarZoom = false) {
       markersLayer.clearLayers();
       marcadoresPorOS = {};
       marcadorAbertoPorClique = null;
@@ -911,8 +985,8 @@
       const grupos = {};
       for (let i = 0; i < dados.length; i++) {
         const item = dados[i];
-        if (!item.pos) continue;
-        const key = `${item.pos[0].toFixed(4)},${item.pos[1].toFixed(4)}`;
+        if (!item.pos || !coordenadaValidaBrasil(item.pos[0], item.pos[1])) continue;
+        const key = `${item.pos[0].toFixed(3)},${item.pos[1].toFixed(3)}`;
         if (!grupos[key]) grupos[key] = [];
         grupos[key].push(item);
       }
@@ -947,7 +1021,7 @@
           const ch = grupo[j];
           htmlPopup += `<b>Intervenção:</b> ${ch.Intervencao}<br><b>Cliente:</b> ${ch.Cliente}<br><b>Nº Chamado:</b> ${ch.CodOS}<br>`;
           if (ch.SLA && !["S/N", "NAN"].includes(String(ch.SLA).toUpperCase())) {
-            htmlPopup += `<b>SLA:</b> ${ch.SLA}<br>`;
+            htmlPopup += `<b>Limite Atendimento:</b> ${ch.SLA}<br>`;
           }
           if (j < grupo.length - 1) htmlPopup += `<hr style="margin:4px 0; border:0; border-top:1px dashed #eee;">`;
         }
@@ -968,7 +1042,7 @@
 
         marker.on('click', () => {
           marcadorAbertoPorClique = marker;
-          map.setView([lat, lng], 17, { animate: true, duration: 0.35 });
+          map.setView([lat, lng], 15, { animate: true, duration: 0.35 });
           marker.openPopup();
 
           chamadoSelecionado = primeiro.CodOS;
@@ -989,61 +1063,111 @@
         markersLayer.addLayer(marker);
       });
 
-      if (bounds.length > 0 && routesLayer.getLayers().length === 0) {
-        map.fitBounds(bounds, { padding: [40, 40], animate: false });
+      if (ajustarZoom && bounds.length > 0 && routesLayer.getLayers().length === 0) {
+        map.fitBounds(bounds, { padding: [40, 40] });
       }
     }
 
     /* =========================================================================
-       7. PROCESSAMENTO DO EXCEL E RESET COMPLETO DE ARQUIVO
+       7. PROCESSAMENTO DA PLANILHA (BRASIL COMPLETO)
        ========================================================================= */
     function mapearColuna(colunas, alvos) {
-      const alvosUpper = alvos.map(a => a.toUpperCase());
+      const alvosNorm = alvos.map(normalizar);
       for (const col of colunas) {
-        if (alvosUpper.includes(String(col).trim().toUpperCase())) return col;
+        const colNorm = normalizar(col);
+        if (alvosNorm.includes(colNorm)) return col;
       }
       for (const col of colunas) {
-        const colLower = String(col).trim().toLowerCase();
-        for (const alvo of alvos) {
-          if (colLower.includes(alvo.toLowerCase())) return col;
+        const colNorm = normalizar(col);
+        for (const alvo of alvosNorm) {
+          if (colNorm.includes(alvo) || alvo.includes(colNorm)) return col;
         }
       }
       return null;
     }
 
+    function formatarValorSLA(val) {
+      if (val === null || val === undefined || val === "") return "";
+      if (typeof val === "number") {
+        const dataJs = new Date(Math.round((val - 25569) * 86400 * 1000));
+        if (!isNaN(dataJs.getTime())) {
+          return dataJs.toLocaleDateString("pt-BR") + " " + dataJs.toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' });
+        }
+      }
+      return String(val).trim();
+    }
+
     async function processarPlanilha(file) {
       const data = await file.arrayBuffer();
-      const workbook = XLSX.read(data, { type: 'array' });
+      const workbook = XLSX.read(data, { type: 'array', cellDates: true });
 
-      let targetSheet = null;
-      for (const prioridade of ["unificado", "rat's", "rats", "chamados"]) {
-        const found = workbook.SheetNames.find(s => s.trim().toLowerCase() === prioridade);
+      let targetSheet = workbook.SheetNames[0];
+      for (const prioridade of ["chamados", "unificado", "ordem_servico", "atendimentos", "rats"]) {
+        const found = workbook.SheetNames.find(s => normalizar(s).includes(normalizar(prioridade)));
         if (found) { targetSheet = found; break; }
       }
-      if (!targetSheet) targetSheet = workbook.SheetNames[0];
 
       const sheet = workbook.Sheets[targetSheet];
-      const jsonRows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+      const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
 
-      if (jsonRows.length === 0) {
+      if (rawRows.length === 0) {
         alert("Aba vazia ou formato inválido.");
         return;
       }
 
-      const colunas = Object.keys(jsonRows[0]);
-      const cOS = mapearColuna(colunas, ["CodOS", "Chamado", "ID", "Ticket"]);
-      const cCid = mapearColuna(colunas, ["Cidade", "Municipio", "Cid"]);
-      const cUF = mapearColuna(colunas, ["SiglaUF", "UF", "Estado"]);
-      const cRua = mapearColuna(colunas, ["Endereco", "Endereço", "Logradouro", "Rua"]);
-      const cInterv = mapearColuna(colunas, ["Intervencao", "Intervenção", "Tipo"]);
-      const cClie = mapearColuna(colunas, ["Cliente", "NomeCliente", "RazaoSocial", "Aba Cliente", "Empresa"]);
-      const cReg = mapearColuna(colunas, ["Regiao", "Região", "Distrito", "Area", "Zona"]);
-      const cSla = mapearColuna(colunas, ["LimiteAtendimento", "LimiteAtend", "Limite Atendimento", "SLA", "Prazo"]);
+      let headerRowIndex = 0;
+      let colunas = [];
+      let cOS = null, cCid = null, cUF = null, cRua = null;
 
-      if (!cOS || !cCid || !cUF || !cRua) {
-        alert("❌ Não foi possível encontrar todas as colunas obrigatórias na planilha.");
+      const alvosOS = ["CodOS", "Chamado", "ID", "Ticket", "OS", "NumeroOS", "OrdemServico", "NroOS"];
+      const alvosCid = ["Cidade", "Municipio", "Cid", "CidadeCliente", "Mun", "DescricaoCidade"];
+      const alvosUF = ["SiglaUF", "UF", "Estado", "UFCliente", "EstadoCliente"];
+      const alvosRua = ["Endereco", "Endereço", "Logradouro", "Rua", "End", "EnderecoCliente", "LogradouroCliente"];
+
+      for (let r = 0; r < Math.min(rawRows.length, 15); r++) {
+        const linha = (rawRows[r] || []).map(cell => String(cell || "").trim());
+        const tOS = mapearColuna(linha, alvosOS);
+        const tCid = mapearColuna(linha, alvosCid);
+        const tUF = mapearColuna(linha, alvosUF);
+        const tRua = mapearColuna(linha, alvosRua);
+
+        if (tOS && tCid && tRua) {
+          headerRowIndex = r;
+          colunas = linha;
+          cOS = tOS;
+          cCid = tCid;
+          cUF = tUF;
+          cRua = tRua;
+          break;
+        }
+      }
+
+      if (!cOS || !cCid || !cRua) {
+        const jsonDefault = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
+        if (jsonDefault.length > 0) {
+          colunas = Object.keys(jsonDefault[0]);
+          cOS = mapearColuna(colunas, alvosOS);
+          cCid = mapearColuna(colunas, alvosCid);
+          cUF = mapearColuna(colunas, alvosUF);
+          cRua = mapearColuna(colunas, alvosRua);
+        }
+      }
+
+      if (!cOS || !cCid || !cRua) {
+        alert(`❌ Colunas obrigatórias não encontradas na planilha.`);
         return;
       }
+
+      const jsonRows = XLSX.utils.sheet_to_json(sheet, {
+        range: headerRowIndex,
+        defval: "",
+        raw: false
+      });
+
+      const cInterv = mapearColuna(colunas, ["Intervencao", "Intervenção", "Tipo", "Servico"]);
+      const cClie = mapearColuna(colunas, ["Cliente", "NomeCliente", "RazaoSocial", "Aba Cliente", "Empresa"]);
+      const cReg = mapearColuna(colunas, ["Regiao", "Região", "Distrito", "Area", "Filial", "UF", "Estado"]);
+      const cSla = mapearColuna(colunas, ["LimiteAtendimento", "Limite Atendimento", "LimiteAtend", "DataLimite", "SLA", "Prazo"]);
 
       const vistos = new Set();
       dfRaw = [];
@@ -1051,19 +1175,27 @@
 
       for (let i = 0; i < jsonRows.length; i++) {
         const row = jsonRows[i];
-        const codOS = String(row[cOS]).split('.')[0].trim();
+        const codOS = String(row[cOS] || "").split('.')[0].trim();
         if (!codOS || vistos.has(codOS)) continue;
         vistos.add(codOS);
 
+        const cidVal = String(row[cCid] || "").trim();
+        const rawUF = cUF && row[cUF] ? String(row[cUF]).trim() : "";
+        const ufVal = extrairSiglaUFValida(rawUF, cidVal);
+
+        // Resolve coordenada para qualquer estado do Brasil
+        const posNacional = resolverCoordenadaNacional(cidVal, ufVal, i);
+
         const item = {
           CodOS: codOS,
-          Cidade: String(row[cCid]).trim(),
-          SiglaUF: String(row[cUF]).trim(),
-          Endereco: String(row[cRua]).trim(),
+          Cidade: cidVal,
+          SiglaUF: ufVal,
+          Endereco: String(row[cRua] || "").trim(),
           Intervencao: cInterv && row[cInterv] ? String(row[cInterv]).trim() : "Não Informado",
           Cliente: cClie && row[cClie] ? String(row[cClie]).trim() : "Não Informado",
-          Regiao: cReg && row[cReg] ? String(row[cReg]).trim() : "Não Informado",
-          SLA: cSla && row[cSla] ? String(row[cSla]).trim() : ""
+          Regiao: cReg && row[cReg] ? String(row[cReg]).trim() : ufVal,
+          SLA: cSla && row[cSla] ? formatarValorSLA(row[cSla]) : "",
+          pos: posNacional
         };
 
         dfRaw.push(item);
@@ -1074,11 +1206,9 @@
       document.getElementById('btn-remover-arquivo').style.display = 'inline-flex';
       initMap();
 
-      await processarGeocodificacaoEmLote(dfRaw, 6);
-
       dfFinal = [...dfRaw];
       popularFiltros(dfFinal);
-      aplicarFiltros();
+      aplicarFiltros(true);
 
       document.getElementById('filtros-container').style.display = 'flex';
       document.getElementById('container-lista').style.display = 'flex';
@@ -1086,27 +1216,21 @@
       document.getElementById('legenda-dinamica').style.display = 'flex';
     }
 
-    // Função de exclusão completa e reset de estado sem recarregar página
     function removerPlanilhaAtual() {
-      // 1. Limpa variáveis em memória
       dfRaw = [];
       dfFinal = [];
       chamadosMap.clear();
       destinosSelecionados.clear();
-      rotasCalculadas = [];
-      rotaPolylines = [];
+      rotasPorDia = [];
+      rotaPolylinesPorDia = [];
       pontoSaidaCoord = null;
-      paradasChamados = [];
-      waypointsIntermediarios = [];
       chamadoSelecionado = null;
       marcadorAbertoPorClique = null;
 
-      // 2. Limpa camadas do mapa Leaflet
       if (markersLayer) markersLayer.clearLayers();
       if (routesLayer) routesLayer.clearLayers();
       if (map) map.setView([-14.2350, -51.9253], 4);
 
-      // 3. Reseta elementos visuais da UI
       document.getElementById('file-input').value = '';
       document.getElementById('upload-label').textContent = '200MB per file • XLSX';
       document.getElementById('upload-label').style.color = '#7b7e87';
@@ -1118,9 +1242,9 @@
       document.getElementById('legenda-dinamica').style.display = 'none';
       document.getElementById('rota-toolbar').style.display = 'none';
       document.getElementById('sidebar-rota-info').style.display = 'none';
+      document.getElementById('btn-sugerir-rotas-sidebar').style.display = 'none';
       document.getElementById('empty-state').style.display = 'block';
 
-      // 4. Retorna para a aba Visão Geral
       abaAtiva = 'geral';
       document.getElementById('tab-geral').classList.add('active');
       document.getElementById('tab-rotas').classList.remove('active');
@@ -1147,7 +1271,7 @@
 
       const intervencoes = [...new Set(dados.map(d => d.Intervencao))].sort();
       const clientes = [...new Set(dados.map(d => d.Cliente))].sort();
-      const regioes = [...new Set(dados.map(d => d.Regiao))].sort();
+      const regioes = [...new Set(dados.map(d => d.Regiao || d.SiglaUF))].sort();
 
       preencherSelect('filtro-intervencao', intervencoes);
       preencherSelect('filtro-cliente', clientes);
@@ -1205,7 +1329,7 @@
           chamadoSelecionado = ch.CodOS;
           renderizarListaChamados(dfFinal);
           if (ch.pos) {
-            map.setView(ch.pos, 17, { animate: true, duration: 0.35 });
+            map.setView(ch.pos, 15, { animate: true, duration: 0.35 });
             const marker = marcadoresPorOS[ch.CodOS];
             if (marker) {
               marcadorAbertoPorClique = marker;
@@ -1219,7 +1343,7 @@
       lista.appendChild(fragment);
     }
 
-    function aplicarFiltros() {
+    function aplicarFiltros(ajustarZoom = false) {
       const fInterv = document.getElementById('filtro-intervencao').value;
       const fClie = document.getElementById('filtro-cliente').value;
       const fReg = document.getElementById('filtro-regiao').value;
@@ -1227,18 +1351,18 @@
       dfFinal = dfRaw.filter(d => {
         if (fInterv !== "Todos" && d.Intervencao !== fInterv) return false;
         if (fClie !== "Todos" && d.Cliente !== fClie) return false;
-        if (fReg !== "Todos" && d.Regiao !== fReg) return false;
+        if (fReg !== "Todos" && d.Regiao !== fReg && d.SiglaUF !== fReg) return false;
         return true;
       });
 
-      renderizarMarcadores(dfFinal);
+      renderizarMarcadores(dfFinal, ajustarZoom);
       renderizarLegendaDinamica(dfFinal);
       renderizarListaChamados(dfFinal);
       popularMultiSelectDestinos(dfFinal);
     }
 
     /* =========================================================================
-       9. TRAÇADO DE ROTAS OTIMIZADO
+       9. TRAÇADO DE ROTAS E DIAS DE 5 HORAS
        ========================================================================= */
     function popularMultiSelectDestinos(dados) {
       const container = document.getElementById('multiselect-list');
@@ -1248,12 +1372,13 @@
       const fragment = document.createDocumentFragment();
 
       if (dados.length === 0) {
-        container.innerHTML = '<div style="font-size:11px; color:#888; padding:6px;">Nenhum chamado disponível nesta região/filtro.</div>';
+        container.innerHTML = '<div style="font-size:11px; color:#888; padding:6px;">Nenhum chamado disponível neste filtro.</div>';
       } else {
         for (let i = 0; i < dados.length; i++) {
           const d = dados[i];
           const id = d.CodOS;
-          const label = `[${d.Cidade}/${d.SiglaUF}] OS: ${d.CodOS} - ${d.Cliente} (${d.Regiao})`;
+          const slaTxt = d.SLA ? ` (Limite: ${d.SLA})` : '';
+          const label = `[${d.Cidade}/${d.SiglaUF}] OS: ${d.CodOS} - ${d.Cliente}${slaTxt}`;
           destinosValidos.add(id);
 
           const item = document.createElement('div');
@@ -1333,207 +1458,202 @@
       return coordinates;
     }
 
-    async function buscarRotasOSRM(coordsLngLat) {
-      if (rotaAbortController) {
-        rotaAbortController.abort();
-      }
-      rotaAbortController = new AbortController();
-
+    async function consultarOSRM(coordsLngLat) {
       const coordsString = coordsLngLat.map(c => `${c[0]},${c[1]}`).join(';');
-      const url = `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=polyline6&alternatives=true&steps=false`;
-
-      const timeoutId = setTimeout(() => {
-        if (rotaAbortController) rotaAbortController.abort();
-      }, 5000);
+      const url = `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=polyline6&alternatives=false&steps=false`;
 
       try {
-        const resp = await fetch(url, { signal: rotaAbortController.signal });
-        clearTimeout(timeoutId);
+        const resp = await fetch(url);
         if (!resp.ok) return null;
         const data = await resp.json();
         if (!data.routes || data.routes.length === 0) return null;
 
-        return data.routes.map((r, index) => {
-          const latLngs = decodePolyline6(r.geometry);
-          const distKm = (r.distance / 1000).toFixed(1);
-          const durMin = Math.round(r.duration / 60);
-          const h = Math.floor(durMin / 60);
-          const m = durMin % 60;
-          const durStr = h > 0 ? `${h}h ${m}min` : `${m} min`;
-
-          const meioIndex = Math.floor(latLngs.length / 2);
-          const posEtiqueta = latLngs[meioIndex] || latLngs[0];
-
-          return {
-            id: index,
-            nome: index === 0 ? "🔵 Rota Principal" : `🟢 Rota Alternativa ${index}`,
-            cor: index === 0 ? "#007BFF" : "#2E8B57",
-            coords: latLngs,
-            posEtiqueta,
-            distKm,
-            durStr
-          };
-        });
-      } catch (err) {
+        const r = data.routes[0];
+        return {
+          coords: decodePolyline6(r.geometry),
+          distanciaMetros: r.distance,
+          duracaoSegundos: r.duration
+        };
+      } catch {
         return null;
       }
     }
 
-    async function recalcularTraçadoRotas() {
-      if (!pontoSaidaCoord || paradasChamados.length === 0) return;
+    function parseTimestampSLA(slaStr) {
+      if (!slaStr) return Infinity;
+      const str = String(slaStr).trim();
+      if (!str || ["S/N", "NAN", "NÃO INFORMADO", "NA", "SEM SLA", "N/A"].includes(str.toUpperCase())) return Infinity;
 
-      const pontosLngLat = [
-        [pontoSaidaCoord[1], pontoSaidaCoord[0]],
-        ...waypointsIntermediarios.map(w => [w[1], w[0]]),
-        ...paradasChamados.map(c => [c.pos[1], c.pos[0]])
-      ];
-
-      rotaPolylines.forEach(item => {
-        if (item.line) routesLayer.removeLayer(item.line);
-        if (item.borderLine) routesLayer.removeLayer(item.borderLine);
-        if (item.hitLine) routesLayer.removeLayer(item.hitLine);
-        if (item.badgeMarker) routesLayer.removeLayer(item.badgeMarker);
-      });
-      routesLayer.eachLayer(layer => {
-        if (layer._isViaWaypoint) routesLayer.removeLayer(layer);
-      });
-
-      rotaPolylines = [];
-      const rotas = await buscarRotasOSRM(pontosLngLat);
-
-      if (rotas && rotas.length > 0) {
-        rotasCalculadas = rotas;
-
-        rotas.slice().reverse().forEach(r => {
-          const borderLine = L.polyline(r.coords, {
-            color: '#0f172a',
-            weight: r.id === 0 ? 8 : 5,
-            opacity: r.id === 0 ? 0.8 : 0.3,
-            smoothFactor: 1.5,
-            lineJoin: 'round',
-            lineCap: 'round'
-          }).addTo(routesLayer);
-
-          const line = L.polyline(r.coords, {
-            color: r.cor,
-            weight: r.id === 0 ? 5 : 3.5,
-            opacity: r.id === 0 ? 1.0 : 0.6,
-            smoothFactor: 1.5,
-            lineJoin: 'round',
-            lineCap: 'round'
-          }).bindTooltip(`${r.nome}: ${r.distKm} km · ${r.durStr}`).addTo(routesLayer);
-
-          const hitLine = L.polyline(r.coords, {
-            color: 'transparent',
-            weight: 20,
-            opacity: 0,
-            smoothFactor: 2.0,
-            cursor: 'crosshair'
-          }).addTo(routesLayer);
-
-          hitLine.on('click', (e) => {
-            const novaLat = e.latlng.lat;
-            const novaLng = e.latlng.lng;
-            waypointsIntermediarios.push([novaLat, novaLng]);
-            agendarRecalculoRota();
-          });
-
-          const badgeIcon = L.divIcon({
-            className: '',
-            html: `
-              <div class="route-label-badge ${r.id === 0 ? 'active' : ''}" data-badge-id="${r.id}">
-                <span>⏱️ ${r.durStr}</span>
-                <span>•</span>
-                <span>${r.distKm} km</span>
-              </div>
-            `,
-            iconSize: [130, 26],
-            iconAnchor: [65, 13]
-          });
-
-          const badgeMarker = L.marker(r.posEtiqueta, { icon: badgeIcon, interactive: true }).addTo(routesLayer);
-          badgeMarker.on('click', () => selecionarRota(r.id));
-
-          line.on('click', () => selecionarRota(r.id));
-          borderLine.on('click', () => selecionarRota(r.id));
-          rotaPolylines.push({ id: r.id, line, borderLine, hitLine, badgeMarker, corOriginal: r.cor });
-        });
-
-        waypointsIntermediarios.forEach((wCoord, wIdx) => {
-          const iconeAnchor = L.divIcon({
-            className: 'via-waypoint-anchor',
-            iconSize: [14, 14],
-            iconAnchor: [7, 7]
-          });
-
-          const wMarker = L.marker(wCoord, { icon: iconeAnchor, draggable: true }).addTo(routesLayer);
-          wMarker._isViaWaypoint = true;
-          wMarker.bindTooltip("Arrastar para mudar rota (2 cliques para remover)");
-
-          wMarker.on('dragend', (e) => {
-            const pos = e.target.getLatLng();
-            waypointsIntermediarios[wIdx] = [pos.lat, pos.lng];
-            agendarRecalculoRota();
-          });
-
-          wMarker.on('dblclick', () => {
-            waypointsIntermediarios.splice(wIdx, 1);
-            agendarRecalculoRota();
-          });
-        });
-
-        const sidebarInfo = document.getElementById('sidebar-rota-info');
-        const saidaStr = document.getElementById('rota-saida').value.trim();
-        let htmlSidebar = `<b>🗺️ Rota (${paradasChamados.length} Paradas)</b><br>🏠 <b>Saída:</b> ${saidaStr}<br>`;
-        paradasChamados.forEach((c, idx) => {
-          htmlSidebar += `📍 <b>${idx + 1}.</b> [${c.Cidade}/${c.SiglaUF}] OS: ${c.CodOS}<br>`;
-        });
-        if (waypointsIntermediarios.length > 0) {
-          htmlSidebar += `<small style="color:#007BFF;">⚡ ${waypointsIntermediarios.length} desvio(s) manual(is) ajustado(s)</small><br>`;
-        }
-        htmlSidebar += `<hr style="margin:8px 0; border:0; border-top:1px solid #3e404f;"><div style="margin-bottom:6px; font-weight:600; color:#fafafa;">Selecione a rota desejada:</div>`;
-
-        rotas.forEach(r => {
-          htmlSidebar += `
-            <div class="rota-card-option ${r.id === 0 ? 'active' : ''}" data-id="${r.id}" onclick="selecionarRota(${r.id})">
-              <div style="font-weight:bold; color:#fafafa; margin-bottom:2px;">${r.nome}</div>
-              <div style="font-size:12px; color:#cbd5e1; margin-top:2px;">📍 <b>${r.distKm} km</b> &nbsp; ⏱️ <b>${r.durStr}</b></div>
-            </div>
-          `;
-        });
-        sidebarInfo.innerHTML = htmlSidebar;
+      const ddmmyyyy = str.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})(?:\s+(\d{1,2}):(\d{1,2})(?::(\d{1,2}))?)?/);
+      if (ddmmyyyy) {
+        const dia = parseInt(ddmmyyyy[1], 10);
+        const mes = parseInt(ddmmyyyy[2], 10) - 1;
+        const ano = parseInt(ddmmyyyy[3], 10);
+        const hora = ddmmyyyy[4] ? parseInt(ddmmyyyy[4], 10) : 23;
+        const min = ddmmyyyy[5] ? parseInt(ddmmyyyy[5], 10) : 59;
+        const sec = ddmmyyyy[6] ? parseInt(ddmmyyyy[6], 10) : 59;
+        const d = new Date(ano, mes, dia, hora, min, sec);
+        if (!isNaN(d.getTime())) return d.getTime();
       }
+
+      const isoParsed = Date.parse(str);
+      if (!isNaN(isoParsed)) return isoParsed;
+
+      return Infinity;
     }
 
-    function agendarRecalculoRota() {
-      clearTimeout(rotaDebounceTimer);
-      rotaDebounceTimer = setTimeout(() => {
-        recalcularTraçadoRotas();
-      }, 120);
+    function obterScoreIntervencao(interv) {
+      const i = String(interv || "").trim().toUpperCase();
+      if (i.includes("CORRETIVA")) return 1;
+      if (i.includes("ORÇAMENTO") || i.includes("ORCAMENTO")) return 2;
+      if (i.includes("INSTALAÇÃO") || i.includes("INSTALACAO") || i.includes("REINSTALAÇÃO")) return 3;
+      if (i.includes("PREVENTIVA")) return 4;
+      return 5;
     }
 
-    function selecionarRota(idRota) {
-      rotaPolylines.forEach(item => {
-        if (item.id === idRota) {
-          item.line.setStyle({ color: item.corOriginal, weight: 5, opacity: 1.0 });
-          if (item.borderLine) item.borderLine.setStyle({ opacity: 0.8 });
-          item.line.bringToFront();
+    function otimizarOrdemParadasComSLA(pontoOrigem, listaParadas) {
+      if (listaParadas.length <= 1) return listaParadas;
+
+      const paradasComScores = listaParadas.map(p => ({
+        item: p,
+        timestampSLA: parseTimestampSLA(p.SLA),
+        scoreTipo: obterScoreIntervencao(p.Intervencao)
+      }));
+
+      const temSLAValido = paradasComScores.some(p => p.timestampSLA !== Infinity);
+      let gruposPrioridade = [];
+
+      if (temSLAValido) {
+        const timestampsValidos = paradasComScores.map(p => p.timestampSLA).filter(t => t !== Infinity);
+        const menorTempo = Math.min(...timestampsValidos);
+        const faixaUrgente = menorTempo + (12 * 60 * 60 * 1000);
+
+        const g1 = [], g2 = [], g3 = [];
+        paradasComScores.forEach(p => {
+          if (p.timestampSLA <= faixaUrgente) g1.push(p.item);
+          else if (p.timestampSLA !== Infinity) g2.push(p.item);
+          else g3.push(p.item);
+        });
+
+        if (g1.length) gruposPrioridade.push(g1);
+        if (g2.length) gruposPrioridade.push(g2);
+        if (g3.length) gruposPrioridade.push(g3);
+      } else {
+        const g1 = [], g2 = [], g3 = [];
+        paradasComScores.forEach(p => {
+          if (p.scoreTipo === 1) g1.push(p.item);
+          else if (p.scoreTipo <= 3) g2.push(p.item);
+          else g3.push(p.item);
+        });
+
+        if (g1.length) gruposPrioridade.push(g1);
+        if (g2.length) gruposPrioridade.push(g2);
+        if (g3.length) gruposPrioridade.push(g3);
+      }
+
+      const rotaFinalOrdenada = [];
+      let pontoAtual = pontoOrigem;
+
+      for (let g = 0; g < gruposPrioridade.length; g++) {
+        const grupo = [...gruposPrioridade[g]];
+
+        while (grupo.length > 0) {
+          let menorDist = Infinity;
+          let melhorIdx = 0;
+
+          for (let i = 0; i < grupo.length; i++) {
+            const p = grupo[i].pos;
+            const dLat = p[0] - pontoAtual[0];
+            const dLng = p[1] - pontoAtual[1];
+            const distSq = dLat * dLat + dLng * dLng;
+
+            if (distSq < menorDist) {
+              menorDist = distSq;
+              melhorIdx = i;
+            }
+          }
+
+          const proximo = grupo.splice(melhorIdx, 1)[0];
+          rotaFinalOrdenada.push(proximo);
+          pontoAtual = proximo.pos;
+        }
+      }
+
+      return rotaFinalOrdenada;
+    }
+
+    async function agruparEmDiasDe5Horas(pontoSaida, listaOrdenada) {
+      const dias = [];
+      let diaAtual = {
+        diaNum: 1,
+        cor: CORES_DIAS[0],
+        paradas: [],
+        duracaoTransitoMin: 0,
+        distanciaTotalKm: 0
+      };
+
+      let pontoAnterior = pontoSaida;
+
+      for (let i = 0; i < listaOrdenada.length; i++) {
+        const parada = listaOrdenada[i];
+        
+        const coordsLngLat = [[pontoAnterior[1], pontoAnterior[0]], [parada.pos[1], parada.pos[0]]];
+        const trecho = await consultarOSRM(coordsLngLat);
+
+        const tempoTransitoTrechoMin = trecho ? Math.round(trecho.duracaoSegundos / 60) : 25;
+        const distKmTrecho = trecho ? (trecho.distanciaMetros / 1000) : 20;
+
+        const tempoAcumuladoComEste = diaAtual.duracaoTransitoMin + tempoTransitoTrechoMin + TEMPO_MEDIO_ATENDIMENTO_MIN;
+
+        if (tempoAcumuladoComEste > LIMITE_DIARIO_MINUTOS && diaAtual.paradas.length > 0) {
+          dias.push(diaAtual);
+
+          const proximoDiaNum = dias.length + 1;
+          const corIdx = (proximoDiaNum - 1) % CORES_DIAS.length;
+
+          diaAtual = {
+            diaNum: proximoDiaNum,
+            cor: CORES_DIAS[corIdx],
+            paradas: [parada],
+            duracaoTransitoMin: tempoTransitoTrechoMin,
+            distanciaTotalKm: distKmTrecho
+          };
         } else {
-          item.line.setStyle({ color: "#64748b", weight: 3.5, opacity: 0.45 });
-          if (item.borderLine) item.borderLine.setStyle({ opacity: 0.2 });
+          diaAtual.paradas.push(parada);
+          diaAtual.duracaoTransitoMin += tempoTransitoTrechoMin;
+          diaAtual.distanciaTotalKm += distKmTrecho;
+        }
+
+        pontoAnterior = parada.pos;
+      }
+
+      if (diaAtual.paradas.length > 0) {
+        dias.push(diaAtual);
+      }
+
+      return dias;
+    }
+
+    function destacarDiaNoMapa(diaNum) {
+      rotaPolylinesPorDia.forEach(item => {
+        const ativo = (diaNum === 'todos' || item.diaNum === diaNum);
+        
+        item.lines.forEach(l => {
+          l.setStyle({
+            opacity: ativo ? 1.0 : 0.25,
+            weight: ativo ? 6 : 3
+          });
+          if (ativo) l.bringToFront();
+        });
+
+        if (item.badgeMarker) {
+          const el = item.badgeMarker.getElement();
+          if (el) el.style.opacity = ativo ? '1.0' : '0.3';
         }
       });
 
-      document.querySelectorAll('.route-label-badge').forEach(badge => {
-        if (parseInt(badge.getAttribute('data-badge-id')) === idRota) {
-          badge.classList.add('active');
-        } else {
-          badge.classList.remove('active');
-        }
-      });
-
-      document.querySelectorAll('.rota-card-option').forEach(card => {
-        if (parseInt(card.getAttribute('data-id')) === idRota) {
+      document.querySelectorAll('.dia-card-option').forEach(card => {
+        if (card.getAttribute('data-dia') == String(diaNum)) {
           card.classList.add('active');
         } else {
           card.classList.remove('active');
@@ -1541,115 +1661,215 @@
       });
     }
 
-    async function calcularRota() {
+    async function desenharRotasPorDias(pontoSaida, diasCalculados) {
+      routesLayer.clearLayers();
+      rotaPolylinesPorDia = [];
+      rotasPorDia = diasCalculados;
+
+      const boundsTodasRotas = [pontoSaida];
+
+      const iconePinSaida = L.divIcon({
+        className: '',
+        html: `
+          <div class="map-pin">
+            <svg viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0Z" fill="#10B981" stroke="#1E1E1E" stroke-width="1.2"/>
+              <circle cx="12" cy="12" r="8" fill="#ffffff"/>
+              <text x="12" y="15" text-anchor="middle" font-size="10" font-family="Arial" font-weight="bold" fill="#10B981">🏠</text>
+            </svg>
+          </div>
+        `,
+        iconSize: [34, 42],
+        iconAnchor: [17, 42],
+        popupAnchor: [0, -38]
+      });
+
       const saidaStr = document.getElementById('rota-saida').value.trim();
+      L.marker(pontoSaida, { icon: iconePinSaida }).bindPopup(`<b>🏠 Saída do Técnico:</b><br>${saidaStr}`).addTo(routesLayer);
+
+      for (let d = 0; d < diasCalculados.length; d++) {
+        const dia = diasCalculados[d];
+        const cor = dia.cor;
+        const pontosDiaLngLat = [[pontoSaida[1], pontoSaida[0]], ...dia.paradas.map(p => [p.pos[1], p.pos[0]])];
+
+        const rotaDia = await consultarOSRM(pontosDiaLngLat);
+        const subLines = [];
+
+        if (rotaDia) {
+          const borderLine = L.polyline(rotaDia.coords, {
+            color: '#0f172a',
+            weight: 8,
+            opacity: 0.85,
+            smoothFactor: 1.5,
+            lineJoin: 'round',
+            lineCap: 'round'
+          }).addTo(routesLayer);
+
+          const mainLine = L.polyline(rotaDia.coords, {
+            color: cor,
+            weight: 5,
+            opacity: 1.0,
+            smoothFactor: 1.5,
+            lineJoin: 'round',
+            lineCap: 'round'
+          }).bindTooltip(`<b>Dia ${dia.diaNum}</b>: ${dia.paradas.length} chamados • ${dia.distanciaTotalKm.toFixed(1)} km`).addTo(routesLayer);
+
+          subLines.push(borderLine, mainLine);
+
+          const meioIdx = Math.floor(rotaDia.coords.length / 2);
+          const posBadge = rotaDia.coords[meioIdx] || rotaDia.coords[0];
+
+          const hTotal = Math.floor((dia.duracaoTransitoMin + (dia.paradas.length * TEMPO_MEDIO_ATENDIMENTO_MIN)) / 60);
+          const mTotal = (dia.duracaoTransitoMin + (dia.paradas.length * TEMPO_MEDIO_ATENDIMENTO_MIN)) % 60;
+          const tempoJornadaStr = `${hTotal}h ${mTotal}min`;
+
+          const badgeIcon = L.divIcon({
+            className: '',
+            html: `
+              <div class="route-label-badge" style="border-color:${cor}; background:#1e293b; color:#fff;">
+                <span style="color:${cor}; font-weight:bold;">Dia ${dia.diaNum}</span>
+                <span>•</span>
+                <span>⏱️ ${tempoJornadaStr}</span>
+                <span>•</span>
+                <span>${dia.distanciaTotalKm.toFixed(1)} km</span>
+              </div>
+            `,
+            iconSize: [160, 26],
+            iconAnchor: [80, 13]
+          });
+
+          const badgeMarker = L.marker(posBadge, { icon: badgeIcon }).addTo(routesLayer);
+          badgeMarker.on('click', () => destacarDiaNoMapa(dia.diaNum));
+
+          rotaPolylinesPorDia.push({
+            diaNum: dia.diaNum,
+            lines: subLines,
+            badgeMarker
+          });
+        }
+
+        dia.paradas.forEach((item, pIdx) => {
+          boundsTodasRotas.push(item.pos);
+
+          const iconePinParada = L.divIcon({
+            className: '',
+            html: `
+              <div class="map-pin">
+                <svg viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0Z" fill="${cor}" stroke="#1E1E1E" stroke-width="1.2"/>
+                  <circle cx="12" cy="12" r="7.5" fill="#ffffff"/>
+                  <text x="12" y="15" text-anchor="middle" font-size="8.5" font-family="Arial" font-weight="bold" fill="${cor}">D${dia.diaNum}-${pIdx + 1}</text>
+                </svg>
+              </div>
+            `,
+            iconSize: [34, 42],
+            iconAnchor: [17, 42],
+            popupAnchor: [0, -38]
+          });
+
+          const slaDetalhe = item.SLA ? `<br><b>Limite Atendimento (SLA):</b> ${item.SLA}` : '';
+          L.marker(item.pos, { icon: iconePinParada })
+            .bindPopup(`<b>📍 Dia ${dia.diaNum} - Parada ${pIdx + 1}:</b> [${item.Cidade}/${item.SiglaUF}]<br><b>OS:</b> ${item.CodOS}<br><b>Cliente:</b> ${item.Cliente}${slaDetalhe}`)
+            .addTo(routesLayer);
+        });
+      }
+
+      const sidebarInfo = document.getElementById('sidebar-rota-info');
+      let htmlSidebar = `<b>🗺️ Planejamento em Dias (Máx 5h/dia)</b><br>🏠 <b>Saída:</b> ${saidaStr}<br>`;
+      htmlSidebar += `<div style="font-size:11px; color:#9a9ca1; margin:4px 0;">Total de ${diasCalculados.length} dia(s) necessário(s) para atendimento.</div>`;
+      htmlSidebar += `<hr style="margin:8px 0; border:0; border-top:1px solid #3e404f;">`;
+
+      diasCalculados.forEach(dia => {
+        const hTotal = Math.floor((dia.duracaoTransitoMin + (dia.paradas.length * TEMPO_MEDIO_ATENDIMENTO_MIN)) / 60);
+        const mTotal = (dia.duracaoTransitoMin + (dia.paradas.length * TEMPO_MEDIO_ATENDIMENTO_MIN)) % 60;
+        const durStr = `${hTotal}h ${mTotal}min`;
+
+        htmlSidebar += `
+          <div class="dia-card-option" data-dia="${dia.diaNum}" onclick="destacarDiaNoMapa(${dia.diaNum})">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+              <span style="font-weight:bold; color:${dia.cor}; font-size:14px;">📅 Dia ${dia.diaNum}</span>
+              <span style="font-size:11px; background:#262730; padding:2px 6px; border-radius:4px; color:#cbd5e1;">${dia.paradas.length} chamados</span>
+            </div>
+            <div style="font-size:11px; color:#cbd5e1;">⏱️ <b>Jornada total:</b> ${durStr} (Trânsito + Atendimentos)</div>
+            <div style="font-size:11px; color:#cbd5e1;">📍 <b>Distância rodada:</b> ${dia.distanciaTotalKm.toFixed(1)} km</div>
+            <div style="margin-top:6px; font-size:11px; color:#9ca3af; border-top:1px dashed #374151; padding-top:4px;">
+              ${dia.paradas.map((p, idx) => {
+                const slaInfo = p.SLA ? ` <span style="color:#FFD700;">[Limite: ${p.SLA}]</span>` : '';
+                return `<b>${idx + 1}.</b> [${p.Cidade}] OS: ${p.CodOS}${slaInfo}`;
+              }).join('<br>')}
+            </div>
+          </div>
+        `;
+      });
+
+      htmlSidebar += `
+        <button onclick="destacarDiaNoMapa('todos')" style="width:100%; margin-top:10px; background:#3b3d4a; color:#fff; border:none; padding:6px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:bold;">
+          👁️ Ver Todos os Dias no Mapa
+        </button>
+      `;
+
+      sidebarInfo.innerHTML = htmlSidebar;
+      sidebarInfo.style.display = 'block';
+
+      map.fitBounds(boundsTodasRotas, { padding: [50, 50] });
+    }
+
+    async function calcularRotasDiarias5Horas() {
+      const saidaStr = document.getElementById('rota-saida').value.trim();
+      const btnSugerir = document.getElementById('btn-sugerir-rotas-sidebar');
       const btnCalc = document.getElementById('btn-calc-rota');
-      const btnCalcTexto = document.getElementById('btn-calc-texto');
 
       if (!saidaStr) {
         alert("❌ Informe a cidade de saída do técnico.");
         return;
       }
+
       if (destinosSelecionados.size === 0) {
-        alert("❌ Selecione ao menos um chamado de destino.");
-        return;
+        if (dfFinal.length === 0) {
+          alert("❌ Nenhum chamado disponível.");
+          return;
+        }
+        dfFinal.forEach(d => destinosSelecionados.add(d.CodOS));
+        popularMultiSelectDestinos(dfFinal);
       }
 
+      btnSugerir.disabled = true;
       btnCalc.disabled = true;
-      btnCalcTexto.textContent = "⏳ Traçando ruas...";
+      btnSugerir.innerHTML = `<span>⏳ Calculando rotas de 5h...</span>`;
 
       try {
         const [cidS, ufS] = saidaStr.split(/[\/-]/).map(s => s.trim());
-        const pA = await buscarCoordenadas("", cidS || saidaStr, ufS || "Brasil");
-        if (!pA) {
-          alert("❌ Não foi possível obter coordenadas para a saída do técnico.");
-          return;
-        }
+        const pA = resolverCoordenadaNacional(cidS || saidaStr, ufS || "SP", 0);
 
-        const chamadosRota = [];
+        let chamadosParaAtender = [];
         for (const codOS of destinosSelecionados) {
           const item = chamadosMap.get(codOS);
           if (item && item.pos) {
-            chamadosRota.push(item);
+            chamadosParaAtender.push(item);
           }
         }
 
-        if (chamadosRota.length === 0) {
+        if (chamadosParaAtender.length === 0) {
           alert("❌ Nenhum dos chamados selecionados possui coordenadas válidas.");
           return;
         }
 
+        const chamadosOrdenados = otimizarOrdemParadasComSLA(pA, chamadosParaAtender);
+        const diasCalculados = await agruparEmDiasDe5Horas(pA, chamadosOrdenados);
+
         pontoSaidaCoord = pA;
-        paradasChamados = chamadosRota;
-        waypointsIntermediarios = [];
+        await desenharRotasPorDias(pA, diasCalculados);
 
-        routesLayer.clearLayers();
-        rotaPolylines = [];
-        rotasCalculadas = [];
-
-        const iconePinSaida = L.divIcon({
-          className: '',
-          html: `
-            <div class="map-pin">
-              <svg viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0Z" fill="#2E8B57" stroke="#1E1E1E" stroke-width="1.2"/>
-                <circle cx="12" cy="12" r="8" fill="#ffffff"/>
-                <text x="12" y="15" text-anchor="middle" font-size="10" font-family="Arial" font-weight="bold" fill="#2E8B57">🏠</text>
-              </svg>
-            </div>
-          `,
-          iconSize: [30, 40],
-          iconAnchor: [15, 40],
-          popupAnchor: [0, -36]
-        });
-
-        const markerSaida = L.marker(pA, { icon: iconePinSaida, draggable: true }).bindPopup(`<b>🏠 Saída do Técnico:</b><br>${saidaStr}`);
-        markerSaida.on('mouseover', () => markerSaida.openPopup());
-        markerSaida.on('mouseout', () => markerSaida.closePopup());
-        markerSaida.on('dragend', (e) => {
-          const pos = e.target.getLatLng();
-          pontoSaidaCoord = [pos.lat, pos.lng];
-          agendarRecalculoRota();
-        });
-        markerSaida.addTo(routesLayer);
-
-        chamadosRota.forEach((item, idx) => {
-          const iconePinDestino = L.divIcon({
-            className: '',
-            html: `
-              <div class="map-pin">
-                <svg viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                  <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0Z" fill="#FF4B4B" stroke="#1E1E1E" stroke-width="1.2"/>
-                  <circle cx="12" cy="12" r="5" fill="#ffffff"/>
-                  <circle cx="12" cy="12" r="2.5" fill="#FF4B4B"/>
-                </svg>
-              </div>
-            `,
-            iconSize: [28, 38],
-            iconAnchor: [14, 38],
-            popupAnchor: [0, -34]
-          });
-
-          const markerDest = L.marker(item.pos, { icon: iconePinDestino, draggable: true })
-            .bindPopup(`<b>📍 Parada:</b> [${item.Cidade}/${item.SiglaUF}]<br><b>OS:</b> ${item.CodOS}<br><b>Cliente:</b> ${item.Cliente}`);
-          
-          markerDest.on('mouseover', () => markerDest.openPopup());
-          markerDest.on('mouseout', () => markerDest.closePopup());
-          markerDest.on('dragend', (e) => {
-            const pos = e.target.getLatLng();
-            paradasChamados[idx].pos = [pos.lat, pos.lng];
-            agendarRecalculoRota();
-          });
-          markerDest.addTo(routesLayer);
-        });
-
-        await recalcularTraçadoRotas();
-
-        const todasCoords = [pA, ...chamadosRota.map(c => c.pos)];
-        map.fitBounds(todasCoords, { padding: [50, 50], animate: false });
       } finally {
+        btnSugerir.disabled = false;
         btnCalc.disabled = false;
-        btnCalcTexto.textContent = "🚀 Calcular Rota";
+        btnSugerir.innerHTML = `
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+          <span>🧠 Rotas Diárias de 5 Horas</span>
+        `;
       }
     }
 
@@ -1657,7 +1877,6 @@
        10. EVENT LISTENERS
        ========================================================================= */
     document.getElementById('upload-card').addEventListener('click', (e) => {
-      // Evita disparar o seletor de arquivo se clicar diretamente no botão de remover
       if (!document.getElementById('btn-remover-arquivo').contains(e.target)) {
         document.getElementById('file-input').click();
       }
@@ -1695,16 +1914,16 @@
       document.getElementById('container-lista').classList.toggle('open');
     });
 
-    document.getElementById('btn-aplicar-filtros').addEventListener('click', aplicarFiltros);
-    document.getElementById('filtro-regiao').addEventListener('change', aplicarFiltros);
-    document.getElementById('filtro-intervencao').addEventListener('change', aplicarFiltros);
-    document.getElementById('filtro-cliente').addEventListener('change', aplicarFiltros);
+    document.getElementById('btn-aplicar-filtros').addEventListener('click', () => aplicarFiltros(true));
+    document.getElementById('filtro-regiao').addEventListener('change', () => aplicarFiltros(true));
+    document.getElementById('filtro-intervencao').addEventListener('change', () => aplicarFiltros(true));
+    document.getElementById('filtro-cliente').addEventListener('change', () => aplicarFiltros(true));
 
     document.getElementById('btn-limpar-filtros').addEventListener('click', () => {
       document.getElementById('filtro-intervencao').value = 'Todos';
       document.getElementById('filtro-cliente').value = 'Todos';
       document.getElementById('filtro-regiao').value = 'Todos';
-      aplicarFiltros();
+      aplicarFiltros(true);
     });
 
     document.getElementById('busca-chamado').addEventListener('input', () => {
@@ -1737,9 +1956,10 @@
       document.getElementById('tab-geral').classList.add('active');
       document.getElementById('tab-rotas').classList.remove('active');
       document.getElementById('rota-toolbar').style.display = 'none';
+      document.getElementById('btn-sugerir-rotas-sidebar').style.display = 'none';
       routesLayer.clearLayers();
       document.getElementById('sidebar-rota-info').style.display = 'none';
-      renderizarMarcadores(dfFinal);
+      renderizarMarcadores(dfFinal, false);
     });
 
     document.getElementById('tab-rotas').addEventListener('click', () => {
@@ -1747,10 +1967,15 @@
       document.getElementById('tab-rotas').classList.add('active');
       document.getElementById('tab-geral').classList.remove('active');
       document.getElementById('rota-toolbar').style.display = 'flex';
+      
+      if (dfRaw.length > 0) {
+        document.getElementById('btn-sugerir-rotas-sidebar').style.display = 'flex';
+      }
       setTimeout(() => { map && map.invalidateSize(); }, 100);
     });
 
-    document.getElementById('btn-calc-rota').addEventListener('click', calcularRota);
+    document.getElementById('btn-calc-rota').addEventListener('click', calcularRotasDiarias5Horas);
+    document.getElementById('btn-sugerir-rotas-sidebar').addEventListener('click', calcularRotasDiarias5Horas);
   </script>
 </body>
 </html>
