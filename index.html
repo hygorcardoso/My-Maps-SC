@@ -219,8 +219,13 @@
       font-size: 0.8rem;
       font-weight: bold;
       cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
     }
     .btn-primary:hover { background-color: #0056b3; }
+    .btn-primary:disabled { background-color: #3b3d4a; cursor: not-allowed; }
 
     .btn-secondary {
       flex: 1;
@@ -267,13 +272,13 @@
       background-color: #2b3040;
     }
 
-    /* Cards de Rota Selecionáveis */
+    /* Cards de Rota Selecionáveis na Sidebar */
     .rota-card-option {
       background: #1a1c23;
       border: 2px solid #3e404f;
-      padding: 8px 10px;
-      border-radius: 6px;
-      margin-top: 6px;
+      padding: 10px 12px;
+      border-radius: 8px;
+      margin-top: 8px;
       cursor: pointer;
       transition: all 0.2s ease;
     }
@@ -286,17 +291,56 @@
       background: #007BFF1a;
     }
 
-    /* --- PIN DE LOCALIZAÇÃO SVG/CSS (PONTOS DE ROTA) --- */
+    /* Pins e Âncoras */
     .map-pin {
       position: relative;
       width: 30px;
       height: 40px;
-      cursor: pointer;
+      cursor: grab;
     }
+    .map-pin:active { cursor: grabbing; }
     .map-pin svg {
       width: 100%;
       height: 100%;
       filter: drop-shadow(0px 3px 5px rgba(0,0,0,0.6));
+    }
+
+    .via-waypoint-anchor {
+      width: 14px;
+      height: 14px;
+      background-color: #ffffff;
+      border: 3px solid #007BFF;
+      border-radius: 50%;
+      box-shadow: 0 0 6px rgba(0,0,0,0.6);
+      cursor: grab;
+    }
+    .via-waypoint-anchor:active { cursor: grabbing; }
+
+    /* --- BADGE DE TEMPO E KM SOBRE A ROTA (ESTILO GOOGLE MAPS) --- */
+    .route-label-badge {
+      background-color: #1e293b;
+      color: #cbd5e1;
+      border: 1.5px solid #475569;
+      border-radius: 20px;
+      padding: 4px 10px;
+      font-size: 11px;
+      font-weight: 600;
+      white-space: nowrap;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      transition: all 0.2s ease;
+      user-select: none;
+    }
+    .route-label-badge:hover { transform: scale(1.06); }
+    .route-label-badge.active {
+      background-color: #007BFF;
+      color: #ffffff;
+      border-color: #ffffff;
+      box-shadow: 0 4px 14px rgba(0, 123, 255, 0.6);
+      z-index: 1000;
     }
 
     /* --- CONTEÚDO PRINCIPAL --- */
@@ -407,14 +451,8 @@
       cursor: pointer;
     }
 
-    .multiselect-item:hover {
-      background-color: #262730;
-    }
-
-    .multiselect-item input[type="checkbox"] {
-      width: auto;
-      cursor: pointer;
-    }
+    .multiselect-item:hover { background-color: #262730; }
+    .multiselect-item input[type="checkbox"] { width: auto; cursor: pointer; }
 
     #map-container {
       flex: 1;
@@ -462,7 +500,6 @@
       flex-shrink: 0;
     }
 
-    /* Ícone customizado Leaflet DivIcon para chamados */
     .custom-cluster-icon {
       border: 1px solid #1E1E1E;
       border-radius: 50%;
@@ -493,7 +530,7 @@
 
   <!-- Sidebar -->
   <aside id="sidebar">
-    <div class="badge-version">v0.5.0</div>
+    <div class="badge-version">v0.5.2</div>
     <div class="app-title">
       <span>📍</span>
       <span>My Maps BR</span>
@@ -512,7 +549,7 @@
       <div class="upload-info" id="upload-label">200MB per file • XLSX</div>
     </div>
 
-    <!-- Filtros Recolhíveis (Expander) -->
+    <!-- Filtros Recolhíveis -->
     <div class="expander-container" id="filtros-container" style="display: none;">
       <div class="expander-header" id="expander-filtros-toggle">
         <div class="expander-title">⏳ Filtros</div>
@@ -544,7 +581,7 @@
       </div>
     </div>
 
-    <!-- Lista de Chamados Recolhível (Expander) -->
+    <!-- Lista de Chamados Recolhível -->
     <div class="expander-container" id="container-lista" style="display: none;">
       <div class="expander-header" id="expander-chamados-toggle">
         <div class="expander-title" id="label-chamados">📋 Lista de Chamados (0)</div>
@@ -560,7 +597,7 @@
     </div>
 
     <!-- Info Rota Sidebar -->
-    <div id="sidebar-rota-info" style="display: none; background:#1e1e24; padding:10px; border-radius:6px; font-size:12px; border:1px solid #3e404f;"></div>
+    <div id="sidebar-rota-info" style="display: none; background:#1e1e24; padding:12px; border-radius:8px; font-size:13px; border:1px solid #3e404f;"></div>
   </aside>
 
   <!-- Botão Toggle Sidebar -->
@@ -592,7 +629,9 @@
         <div class="multiselect-list" id="multiselect-list"></div>
       </div>
 
-      <button class="btn-primary" id="btn-calc-rota" style="flex: 1;">🚀 Calcular Rota</button>
+      <button class="btn-primary" id="btn-calc-rota" style="flex: 1;">
+        <span id="btn-calc-texto">🚀 Calcular Rota</span>
+      </button>
     </div>
 
     <!-- Mapa -->
@@ -605,7 +644,7 @@
     <div class="legenda-container" id="legenda-dinamica" style="display: none;"></div>
   </main>
 
-  <!-- Dependências JS (Leaflet + SheetJS) -->
+  <!-- Dependências JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
@@ -670,6 +709,11 @@
     let rotasCalculadas = [];
     let rotaPolylines = [];
 
+    // Estado da Rota Arrastável
+    let pontoSaidaCoord = null;
+    let paradasChamados = [];
+    let waypointsIntermediarios = [];
+
     /* =========================================================================
        3. CACHE LOCAL (localStorage)
        ========================================================================= */
@@ -719,7 +763,7 @@
       const cidLimpa = (cid || "").trim();
       const ufLimpa = (uf || "").trim();
 
-      const chaveBusca = `${ruaLimpa}, ${cidLimpa} / ${ufLimpa}`.toUpperCase().trim();
+      const chaveBusca = ruaLimpa ? `${ruaLimpa}, ${cidLimpa} / ${ufLimpa}`.toUpperCase().trim() : `${cidLimpa} / ${ufLimpa}`.toUpperCase().trim();
       const chaveExcecao = `${normalizar(cidLimpa)}-${normalizar(ufLimpa)}`;
 
       if (EXCECOES_CIDADES[chaveExcecao]) {
@@ -733,13 +777,13 @@
         return coordsSessao[chaveBusca];
       }
 
-      const queries = [
-        `${ruaLimpa}, ${cidLimpa} / ${ufLimpa}`,
-        `${ruaLimpa}, ${cidLimpa} - ${ufLimpa}, Brasil`,
-        `${ruaLimpa.split(',')[0]}, ${cidLimpa} / ${ufLimpa}`,
-        `${cidLimpa} / ${ufLimpa}`,
-        `${cidLimpa}, ${ufLimpa}, Brasil`
-      ];
+      const queries = ruaLimpa 
+        ? [
+            `${ruaLimpa}, ${cidLimpa} / ${ufLimpa}`,
+            `${ruaLimpa.split(',')[0]}, ${cidLimpa} / ${ufLimpa}`,
+            `${cidLimpa} / ${ufLimpa}`
+          ]
+        : [`${cidLimpa} / ${ufLimpa}`, `${cidLimpa}, Brasil`];
 
       for (const q of queries) {
         try {
@@ -840,14 +884,9 @@
           marcadoresPorOS[ch.CodOS] = marker;
         });
 
-        marker.on('mouseover', () => {
-          marker.openPopup();
-        });
-
+        marker.on('mouseover', () => { marker.openPopup(); });
         marker.on('mouseout', () => {
-          if (marcadorAbertoPorClique !== marker) {
-            marker.closePopup();
-          }
+          if (marcadorAbertoPorClique !== marker) { marker.closePopup(); }
         });
 
         marker.on('click', () => {
@@ -1071,7 +1110,7 @@
     }
 
     /* =========================================================================
-       9. TRAÇADO DE ROTAS PELAS VIAS (OSRM) + PINS DE LOCALIZAÇÃO GEOGRÁFICA
+       9. TRAÇADO DE ROTAS COM EXIBIÇÃO NO MAPA E NA SIDEBAR
        ========================================================================= */
     function popularMultiSelectDestinos(dados) {
       const container = document.getElementById('multiselect-list');
@@ -1136,36 +1175,195 @@
         : `🏁 ${count} chamado(s) selecionado(s)`;
     }
 
+    function decodePolyline6(str) {
+      let index = 0, lat = 0, lng = 0, coordinates = [], shift = 0, result = 0, byte = null, latitude_change, longitude_change;
+      const factor = 1e6;
+      while (index < str.length) {
+        byte = null; shift = 0; result = 0;
+        do {
+          byte = str.charCodeAt(index++) - 63;
+          result |= (byte & 0x1f) << shift;
+          shift += 5;
+        } while (byte >= 0x20);
+        latitude_change = ((result & 1) ? ~(result >> 1) : (result >> 1));
+        shift = 0; result = 0;
+        do {
+          byte = str.charCodeAt(index++) - 63;
+          result |= (byte & 0x1f) << shift;
+          shift += 5;
+        } while (byte >= 0x20);
+        longitude_change = ((result & 1) ? ~(result >> 1) : (result >> 1));
+        lat += latitude_change;
+        lng += longitude_change;
+        coordinates.push([lat / factor, lng / factor]);
+      }
+      return coordinates;
+    }
+
     async function buscarRotasOSRM(coordsLngLat) {
       const coordsString = coordsLngLat.map(c => `${c[0]},${c[1]}`).join(';');
-      const url = `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=geojson&alternatives=true&steps=false`;
+      const url = `https://router.project-osrm.org/route/v1/driving/${coordsString}?overview=full&geometries=polyline6&alternatives=true&steps=false`;
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 6000);
 
       try {
-        const resp = await fetch(url);
+        const resp = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
         if (!resp.ok) return null;
         const data = await resp.json();
         if (!data.routes || data.routes.length === 0) return null;
 
         return data.routes.map((r, index) => {
-          const latLngs = r.geometry.coordinates.map(c => [c[1], c[0]]);
+          const latLngs = decodePolyline6(r.geometry);
           const distKm = (r.distance / 1000).toFixed(1);
           const durMin = Math.round(r.duration / 60);
           const h = Math.floor(durMin / 60);
           const m = durMin % 60;
           const durStr = h > 0 ? `${h}h ${m}min` : `${m} min`;
 
+          const meioIndex = Math.floor(latLngs.length / 2);
+          const posEtiqueta = latLngs[meioIndex] || latLngs[0];
+
           return {
             id: index,
-            nome: index === 0 ? "🔵 Rota Principal (Mais rápida)" : `🟢 Rota Alternativa ${index}`,
+            nome: index === 0 ? "🔵 Rota Principal" : `🟢 Rota Alternativa ${index}`,
             cor: index === 0 ? "#007BFF" : "#2E8B57",
             coords: latLngs,
+            posEtiqueta,
             distKm,
             durStr
           };
         });
       } catch (err) {
-        console.error("Erro ao buscar rota OSRM:", err);
+        console.warn("Falha no servidor de rotas:", err);
         return null;
+      }
+    }
+
+    async function recalcularTraçadoRotas() {
+      if (!pontoSaidaCoord || paradasChamados.length === 0) return;
+
+      const pontosLngLat = [
+        [pontoSaidaCoord[1], pontoSaidaCoord[0]],
+        ...waypointsIntermediarios.map(w => [w[1], w[0]]),
+        ...paradasChamados.map(c => [c.pos[1], c.pos[0]])
+      ];
+
+      rotaPolylines.forEach(item => {
+        if (item.line) routesLayer.removeLayer(item.line);
+        if (item.borderLine) routesLayer.removeLayer(item.borderLine);
+        if (item.hitLine) routesLayer.removeLayer(item.hitLine);
+        if (item.badgeMarker) routesLayer.removeLayer(item.badgeMarker);
+      });
+      routesLayer.eachLayer(layer => {
+        if (layer._isViaWaypoint) routesLayer.removeLayer(layer);
+      });
+
+      rotaPolylines = [];
+      const rotas = await buscarRotasOSRM(pontosLngLat);
+
+      if (rotas && rotas.length > 0) {
+        rotasCalculadas = rotas;
+
+        rotas.slice().reverse().forEach(r => {
+          const borderLine = L.polyline(r.coords, {
+            color: '#0f172a',
+            weight: r.id === 0 ? 9 : 6,
+            opacity: r.id === 0 ? 0.85 : 0.35,
+            lineJoin: 'round',
+            lineCap: 'round'
+          }).addTo(routesLayer);
+
+          const line = L.polyline(r.coords, {
+            color: r.cor,
+            weight: r.id === 0 ? 6 : 4,
+            opacity: r.id === 0 ? 1.0 : 0.6,
+            lineJoin: 'round',
+            lineCap: 'round'
+          }).bindTooltip(`${r.nome}: ${r.distKm} km · ${r.durStr}`).addTo(routesLayer);
+
+          const hitLine = L.polyline(r.coords, {
+            color: 'transparent',
+            weight: 22,
+            opacity: 0,
+            cursor: 'crosshair'
+          }).addTo(routesLayer);
+
+          hitLine.on('click', (e) => {
+            const novaLat = e.latlng.lat;
+            const novaLng = e.latlng.lng;
+            waypointsIntermediarios.push([novaLat, novaLng]);
+            recalcularTraçadoRotas();
+          });
+
+          // 1. Badge flutuante sobre a linha no Mapa (Estilo Maps)
+          const badgeIcon = L.divIcon({
+            className: '',
+            html: `
+              <div class="route-label-badge ${r.id === 0 ? 'active' : ''}" data-badge-id="${r.id}">
+                <span>⏱️ ${r.durStr}</span>
+                <span>•</span>
+                <span>${r.distKm} km</span>
+              </div>
+            `,
+            iconSize: [130, 26],
+            iconAnchor: [65, 13]
+          });
+
+          const badgeMarker = L.marker(r.posEtiqueta, { icon: badgeIcon, interactive: true }).addTo(routesLayer);
+          badgeMarker.on('click', () => selecionarRota(r.id));
+
+          line.on('click', () => selecionarRota(r.id));
+          borderLine.on('click', () => selecionarRota(r.id));
+          rotaPolylines.push({ id: r.id, line, borderLine, hitLine, badgeMarker, corOriginal: r.cor });
+        });
+
+        // Âncoras manuais arrastáveis
+        waypointsIntermediarios.forEach((wCoord, wIdx) => {
+          const iconeAnchor = L.divIcon({
+            className: 'via-waypoint-anchor',
+            iconSize: [14, 14],
+            iconAnchor: [7, 7]
+          });
+
+          const wMarker = L.marker(wCoord, { icon: iconeAnchor, draggable: true }).addTo(routesLayer);
+          wMarker._isViaWaypoint = true;
+          wMarker.bindTooltip("Arrastar para mudar rota (2 cliques para remover)");
+
+          wMarker.on('dragend', (e) => {
+            const pos = e.target.getLatLng();
+            waypointsIntermediarios[wIdx] = [pos.lat, pos.lng];
+            recalcularTraçadoRotas();
+          });
+
+          wMarker.on('dblclick', () => {
+            waypointsIntermediarios.splice(wIdx, 1);
+            recalcularTraçadoRotas();
+          });
+        });
+
+        // 2. Painel Informativo na Barra Lateral (Sidebar)
+        const sidebarInfo = document.getElementById('sidebar-rota-info');
+        const saidaStr = document.getElementById('rota-saida').value.trim();
+        let htmlSidebar = `<b>🗺️ Rota (${paradasChamados.length} Paradas)</b><br>🏠 <b>Saída:</b> ${saidaStr}<br>`;
+        paradasChamados.forEach((c, idx) => {
+          htmlSidebar += `📍 <b>${idx + 1}.</b> [${c.Cidade}/${c.SiglaUF}] OS: ${c.CodOS}<br>`;
+        });
+        if (waypointsIntermediarios.length > 0) {
+          htmlSidebar += `<small style="color:#007BFF;">⚡ ${waypointsIntermediarios.length} desvio(s) manual(is) ajustado(s)</small><br>`;
+        }
+        htmlSidebar += `<hr style="margin:8px 0; border:0; border-top:1px solid #3e404f;"><div style="margin-bottom:6px; font-weight:600; color:#fafafa;">Selecione a rota desejada:</div>`;
+
+        rotas.forEach(r => {
+          htmlSidebar += `
+            <div class="rota-card-option ${r.id === 0 ? 'active' : ''}" data-id="${r.id}" onclick="selecionarRota(${r.id})">
+              <div style="font-weight:bold; color:#fafafa; margin-bottom:2px;">${r.nome}</div>
+              <div style="font-size:12px; color:#cbd5e1; margin-top:2px;">📍 <b>${r.distKm} km</b> &nbsp; ⏱️ <b>${r.durStr}</b></div>
+            </div>
+          `;
+        });
+        sidebarInfo.innerHTML = htmlSidebar;
       }
     }
 
@@ -1174,19 +1372,31 @@
         if (item.id === idRota) {
           item.line.setStyle({
             color: item.corOriginal,
-            weight: 7,
+            weight: 6,
             opacity: 1.0
           });
+          if (item.borderLine) item.borderLine.setStyle({ opacity: 0.85 });
           item.line.bringToFront();
         } else {
           item.line.setStyle({
-            color: "#6b7280",
+            color: "#64748b",
             weight: 4,
-            opacity: 0.5
+            opacity: 0.45
           });
+          if (item.borderLine) item.borderLine.setStyle({ opacity: 0.2 });
         }
       });
 
+      // Atualiza os Badges flutuantes no mapa
+      document.querySelectorAll('.route-label-badge').forEach(badge => {
+        if (parseInt(badge.getAttribute('data-badge-id')) === idRota) {
+          badge.classList.add('active');
+        } else {
+          badge.classList.remove('active');
+        }
+      });
+
+      // Atualiza os cards na sidebar
       document.querySelectorAll('.rota-card-option').forEach(card => {
         if (parseInt(card.getAttribute('data-id')) === idRota) {
           card.classList.add('active');
@@ -1198,6 +1408,8 @@
 
     async function calcularRota() {
       const saidaStr = document.getElementById('rota-saida').value.trim();
+      const btnCalc = document.getElementById('btn-calc-rota');
+      const btnCalcTexto = document.getElementById('btn-calc-texto');
 
       if (!saidaStr) {
         alert("❌ Informe a cidade de saída do técnico.");
@@ -1208,125 +1420,104 @@
         return;
       }
 
-      const [cidS, ufS] = saidaStr.split(/[\/-]/).map(s => s.trim());
-      const pA = await buscarCoordenadas("", cidS || saidaStr, ufS || "Brasil");
-      if (!pA) {
-        alert("❌ Não foi possível obter coordenadas para a saída do técnico.");
-        return;
-      }
+      btnCalc.disabled = true;
+      btnCalcTexto.textContent = "⏳ Traçando ruas...";
 
-      const pontosLngLat = [[pA[1], pA[0]]];
-      const chamadosRota = [];
-
-      for (const codOS of destinosSelecionados) {
-        const item = dfRaw.find(d => d.CodOS === codOS);
-        if (item && item.pos) {
-          pontosLngLat.push([item.pos[1], item.pos[0]]);
-          chamadosRota.push(item);
+      try {
+        const [cidS, ufS] = saidaStr.split(/[\/-]/).map(s => s.trim());
+        const pA = await buscarCoordenadas("", cidS || saidaStr, ufS || "Brasil");
+        if (!pA) {
+          alert("❌ Não foi possível obter coordenadas para a saída do técnico.");
+          return;
         }
-      }
 
-      if (chamadosRota.length === 0) {
-        alert("❌ Nenhum dos chamados selecionados possui coordenadas válidas.");
-        return;
-      }
+        const chamadosRota = [];
+        for (const codOS of destinosSelecionados) {
+          const item = dfRaw.find(d => d.CodOS === codOS);
+          if (item && item.pos) {
+            chamadosRota.push(item);
+          }
+        }
 
-      routesLayer.clearLayers();
-      rotaPolylines = [];
-      rotasCalculadas = [];
+        if (chamadosRota.length === 0) {
+          alert("❌ Nenhum dos chamados selecionados possui coordenadas válidas.");
+          return;
+        }
 
-      // 1. PIN de Saída do Técnico (Ícone de Casa em formato de gota)
-      const iconePinSaida = L.divIcon({
-        className: '',
-        html: `
-          <div class="map-pin">
-            <svg viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0Z" fill="#2E8B57" stroke="#1E1E1E" stroke-width="1.2"/>
-              <circle cx="12" cy="12" r="8" fill="#ffffff"/>
-              <text x="12" y="15" text-anchor="middle" font-size="10" font-family="Arial" font-weight="bold" fill="#2E8B57">🏠</text>
-            </svg>
-          </div>
-        `,
-        iconSize: [30, 40],
-        iconAnchor: [15, 40],
-        popupAnchor: [0, -36]
-      });
+        pontoSaidaCoord = pA;
+        paradasChamados = chamadosRota;
+        waypointsIntermediarios = [];
 
-      const markerSaida = L.marker(pA, { icon: iconePinSaida }).bindPopup(`<b>🏠 Saída do Técnico:</b><br>${saidaStr}`);
-      markerSaida.on('mouseover', () => markerSaida.openPopup());
-      markerSaida.on('mouseout', () => markerSaida.closePopup());
-      markerSaida.addTo(routesLayer);
+        routesLayer.clearLayers();
+        rotaPolylines = [];
+        rotasCalculadas = [];
 
-      // 2. PINs de Localização das Paradas (Ponto de localização vermelho/gota)
-      chamadosRota.forEach((item, index) => {
-        const iconePinDestino = L.divIcon({
+        // Pin de Saída do Técnico
+        const iconePinSaida = L.divIcon({
           className: '',
           html: `
             <div class="map-pin">
               <svg viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0Z" fill="#FF4B4B" stroke="#1E1E1E" stroke-width="1.2"/>
-                <circle cx="12" cy="12" r="5" fill="#ffffff"/>
-                <circle cx="12" cy="12" r="2.5" fill="#FF4B4B"/>
+                <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0Z" fill="#2E8B57" stroke="#1E1E1E" stroke-width="1.2"/>
+                <circle cx="12" cy="12" r="8" fill="#ffffff"/>
+                <text x="12" y="15" text-anchor="middle" font-size="10" font-family="Arial" font-weight="bold" fill="#2E8B57">🏠</text>
               </svg>
             </div>
           `,
-          iconSize: [28, 38],
-          iconAnchor: [14, 38],
-          popupAnchor: [0, -34]
+          iconSize: [30, 40],
+          iconAnchor: [15, 40],
+          popupAnchor: [0, -36]
         });
 
-        const markerDest = L.marker(item.pos, { icon: iconePinDestino })
-          .bindPopup(`<b>📍 Parada:</b> [${item.Cidade}/${item.SiglaUF}]<br><b>OS:</b> ${item.CodOS}<br><b>Cliente:</b> ${item.Cliente}`);
-        
-        markerDest.on('mouseover', () => markerDest.openPopup());
-        markerDest.on('mouseout', () => markerDest.closePopup());
-        markerDest.addTo(routesLayer);
-      });
+        const markerSaida = L.marker(pA, { icon: iconePinSaida, draggable: true }).bindPopup(`<b>🏠 Saída do Técnico:</b><br>${saidaStr}`);
+        markerSaida.on('mouseover', () => markerSaida.openPopup());
+        markerSaida.on('mouseout', () => markerSaida.closePopup());
+        markerSaida.on('dragend', (e) => {
+          const pos = e.target.getLatLng();
+          pontoSaidaCoord = [pos.lat, pos.lng];
+          recalcularTraçadoRotas();
+        });
+        markerSaida.addTo(routesLayer);
 
-      // Cálculo das rotas pelas vias
-      const rotas = await buscarRotasOSRM(pontosLngLat);
-      const sidebarInfo = document.getElementById('sidebar-rota-info');
-      sidebarInfo.style.display = 'block';
+        // Pins das Paradas
+        chamadosRota.forEach((item, idx) => {
+          const iconePinDestino = L.divIcon({
+            className: '',
+            html: `
+              <div class="map-pin">
+                <svg viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+                  <path d="M12 0C5.37 0 0 5.37 0 12C0 21 12 32 12 32C12 32 24 21 24 12C24 5.37 18.63 0 12 0Z" fill="#FF4B4B" stroke="#1E1E1E" stroke-width="1.2"/>
+                  <circle cx="12" cy="12" r="5" fill="#ffffff"/>
+                  <circle cx="12" cy="12" r="2.5" fill="#FF4B4B"/>
+                </svg>
+              </div>
+            `,
+            iconSize: [28, 38],
+            iconAnchor: [14, 38],
+            popupAnchor: [0, -34]
+          });
 
-      let htmlSidebar = `<b>🗺️ Rota (${chamadosRota.length} Paradas)</b><br>🏠 <b>Saída:</b> ${saidaStr}<br>`;
-      chamadosRota.forEach((c, idx) => {
-        htmlSidebar += `📍 <b>${idx + 1}.</b> [${c.Cidade}/${c.SiglaUF}] OS: ${c.CodOS}<br>`;
-      });
-      htmlSidebar += `<hr style="margin:8px 0; border:0; border-top:1px solid #3e404f;"><div style="margin-bottom:6px; font-weight:600; color:#fafafa;">Selecione a rota desejada:</div>`;
-
-      if (rotas && rotas.length > 0) {
-        rotasCalculadas = rotas;
-
-        rotas.slice().reverse().forEach(r => {
-          const line = L.polyline(r.coords, {
-            color: r.cor,
-            weight: r.id === 0 ? 7 : 4,
-            opacity: r.id === 0 ? 1.0 : 0.6,
-            lineJoin: 'round'
-          }).bindTooltip(`${r.nome}: ${r.distKm} km · ${r.durStr}`).addTo(routesLayer);
-
-          line.on('click', () => selecionarRota(r.id));
-          rotaPolylines.push({ id: r.id, line, corOriginal: r.cor });
+          const markerDest = L.marker(item.pos, { icon: iconePinDestino, draggable: true })
+            .bindPopup(`<b>📍 Parada:</b> [${item.Cidade}/${item.SiglaUF}]<br><b>OS:</b> ${item.CodOS}<br><b>Cliente:</b> ${item.Cliente}`);
+          
+          markerDest.on('mouseover', () => markerDest.openPopup());
+          markerDest.on('mouseout', () => markerDest.closePopup());
+          markerDest.on('dragend', (e) => {
+            const pos = e.target.getLatLng();
+            paradasChamados[idx].pos = [pos.lat, pos.lng];
+            recalcularTraçadoRotas();
+          });
+          markerDest.addTo(routesLayer);
         });
 
-        rotas.forEach(r => {
-          htmlSidebar += `
-            <div class="rota-card-option ${r.id === 0 ? 'active' : ''}" data-id="${r.id}" onclick="selecionarRota(${r.id})">
-              <div style="font-weight:bold; color:#fafafa; margin-bottom:2px;">${r.nome}</div>
-              <div style="font-size:11px; color:#cbd5e1;">📍 <b>${r.distKm} km</b> &nbsp; ⏱️ <b>${r.durStr}</b></div>
-            </div>
-          `;
-        });
-      } else {
-        const coordsLinha = [pA, ...chamadosRota.map(c => c.pos)];
-        L.polyline(coordsLinha, { color: '#007BFF', weight: 4, dashArray: '8' }).addTo(routesLayer);
-        htmlSidebar += `<div style="color:#FFA500; margin-top:4px;">⚠️ Rota aproximada (conexão com vias indisponível).</div>`;
+        await recalcularTraçadoRotas();
+
+        const todasCoords = [pA, ...chamadosRota.map(c => c.pos)];
+        map.fitBounds(todasCoords, { padding: [50, 50] });
+      } finally {
+        btnCalc.disabled = false;
+        btnCalcTexto.textContent = "🚀 Calcular Rota";
       }
-
-      sidebarInfo.innerHTML = htmlSidebar;
-
-      const todasCoords = [pA, ...chamadosRota.map(c => c.pos)];
-      map.fitBounds(todasCoords, { padding: [50, 50] });
     }
 
     /* =========================================================================
