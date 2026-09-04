@@ -869,7 +869,7 @@
 
   <!-- Sidebar com Logo Interativo para Compactar/Expandir -->
   <aside id="sidebar">
-    <div class="badge-version">v0.8.5 (Filtros Reais)</div>
+    <div class="badge-version">v0.8.6 (Filtro Região Exata)</div>
     <div class="app-title" id="app-title-container" title="Clique para recolher ou expandir o menu">
       <span class="app-logo-icon">📍</span>
       <span class="app-title-text">My Maps BR</span>
@@ -940,7 +940,7 @@
         </div>
 
         <div>
-          <label>Região (Unificado):</label>
+          <label>Região:</label>
           <select id="filtro-regiao"><option value="Todos">Todos</option></select>
         </div>
 
@@ -1389,7 +1389,6 @@
       return { rua: txt, numero: "" };
     }
 
-    // Geocodificador Detalhado Real com Nominatim / OpenStreetMap
     async function resolverCoordenadaDetalhada(item, index) {
       const ruaBruta = (item.Rua || item.Endereco || "").trim();
       const cidade = (item.Cidade || "").trim();
@@ -1596,15 +1595,26 @@
        ========================================================================= */
     function mapearColuna(colunas, alvos) {
       const alvosNorm = alvos.map(normalizar);
-      for (const col of colunas) {
-        const colNorm = normalizar(col);
-        if (alvosNorm.includes(colNorm)) return col;
+      // 1ª passada: correspondência exata prioritária por termo-alvo
+      for (const alvo of alvosNorm) {
+        for (const col of colunas) {
+          if (normalizar(col) === alvo) return col;
+        }
       }
-      for (const col of colunas) {
-        const colNorm = normalizar(col).replace(/\s+/g, '');
-        for (const alvo of alvosNorm) {
-          const alvoSemEspaco = alvo.replace(/\s+/g, '');
-          if (colNorm.includes(alvoSemEspaco) || alvoSemEspaco.includes(colNorm)) return col;
+      // 2ª passada: correspondência exata sem espaços por termo-alvo
+      for (const alvo of alvosNorm) {
+        const alvoSemEspaco = alvo.replace(/\s+/g, '');
+        for (const col of colunas) {
+          const colSemEspaco = normalizar(col).replace(/\s+/g, '');
+          if (colSemEspaco === alvoSemEspaco) return col;
+        }
+      }
+      // 3ª passada: correspondência por substring onde o nome da coluna contém o alvo
+      for (const alvo of alvosNorm) {
+        const alvoSemEspaco = alvo.replace(/\s+/g, '');
+        for (const col of colunas) {
+          const colSemEspaco = normalizar(col).replace(/\s+/g, '');
+          if (colSemEspaco.includes(alvoSemEspaco)) return col;
         }
       }
       return null;
@@ -1665,7 +1675,7 @@
         }
       }
 
-      // 2. Extração de todos os dados principais da aba Unificado
+      // 2. Extração dos dados principais da aba Unificado
       let targetSheet = null;
       for (const prioridade of ["unificado", "ordem_servico", "chamados", "atendimentos", "rats"]) {
         const found = workbook.SheetNames.find(s => normalizar(s).includes(normalizar(prioridade)));
@@ -1687,7 +1697,10 @@
       let cEndereco = null, cBairro = null, cCidade = null, cUF = null;
 
       const alvosOS = ["CodOS", "NumOS", "OrdemServico", "Chamado", "ID", "Ticket", "OS", "NumeroOS"];
-      const alvosRegiao = ["Regiao", "Região", "Distrito", "Area", "Filial"];
+      
+      // Busca estrita para não confundir 'Regiao' com 'Filial' ou 'UF'
+      const alvosRegiao = ["Regiao", "Região", "Regional", "Distrito", "Area"];
+      
       const alvosCliente = ["Cliente", "NomeCliente", "RazaoSocial", "Aba Cliente", "Empresa", "Fantasia"];
       const alvosLocal = ["LocalAtendimento", "NomeLocal", "Local", "DescricaoLocal"];
       const alvosEndereco = ["Endereco", "Endereço", "Logradouro", "Rua", "End", "EnderecoCliente"];
@@ -1762,7 +1775,7 @@
         const ufVal = extrairSiglaUFValida(rawUF, cidVal);
         const localNome = cLocal && row[cLocal] ? String(row[cLocal]).trim() : localNomeFallback(cidVal, codOS);
         
-        // Pega exatamente a Região da planilha Unificado
+        // Pega exclusivamente o valor da coluna Regiao da tabela Unificado
         const regiaoVal = cRegiao && row[cRegiao] && String(row[cRegiao]).trim() !== "" 
           ? String(row[cRegiao]).trim() 
           : "Não Informado";
@@ -1925,7 +1938,7 @@
     }
 
     /* =========================================================================
-       7. FILTROS E SIDEBAR COM CASCAIS REGIAO E ESTADO (UF)
+       7. FILTROS E SIDEBAR (REGIÃO E ESTADO)
        ========================================================================= */
     function popularFiltros(dados) {
       const preencherSelect = (id, valores) => {
