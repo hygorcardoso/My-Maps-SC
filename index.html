@@ -869,7 +869,7 @@
 
   <!-- Sidebar com Logo Interativo para Compactar/Expandir -->
   <aside id="sidebar">
-    <div class="badge-version">v0.8.6 (Filtro Região Exata)</div>
+    <div class="badge-version">v0.8.7 (Filtro Condicional)</div>
     <div class="app-title" id="app-title-container" title="Clique para recolher ou expandir o menu">
       <span class="app-logo-icon">📍</span>
       <span class="app-title-text">My Maps BR</span>
@@ -944,7 +944,8 @@
           <select id="filtro-regiao"><option value="Todos">Todos</option></select>
         </div>
 
-        <div>
+        <!-- Contêiner do Filtro de Estado (exibido apenas se houver 2 ou mais UFs) -->
+        <div id="box-filtro-estado" style="display: none;">
           <label>Estado (UF):</label>
           <select id="filtro-estado"><option value="Todos">Todos</option></select>
         </div>
@@ -1595,13 +1596,11 @@
        ========================================================================= */
     function mapearColuna(colunas, alvos) {
       const alvosNorm = alvos.map(normalizar);
-      // 1ª passada: correspondência exata prioritária por termo-alvo
       for (const alvo of alvosNorm) {
         for (const col of colunas) {
           if (normalizar(col) === alvo) return col;
         }
       }
-      // 2ª passada: correspondência exata sem espaços por termo-alvo
       for (const alvo of alvosNorm) {
         const alvoSemEspaco = alvo.replace(/\s+/g, '');
         for (const col of colunas) {
@@ -1609,7 +1608,6 @@
           if (colSemEspaco === alvoSemEspaco) return col;
         }
       }
-      // 3ª passada: correspondência por substring onde o nome da coluna contém o alvo
       for (const alvo of alvosNorm) {
         const alvoSemEspaco = alvo.replace(/\s+/g, '');
         for (const col of colunas) {
@@ -1697,10 +1695,7 @@
       let cEndereco = null, cBairro = null, cCidade = null, cUF = null;
 
       const alvosOS = ["CodOS", "NumOS", "OrdemServico", "Chamado", "ID", "Ticket", "OS", "NumeroOS"];
-      
-      // Busca estrita para não confundir 'Regiao' com 'Filial' ou 'UF'
       const alvosRegiao = ["Regiao", "Região", "Regional", "Distrito", "Area"];
-      
       const alvosCliente = ["Cliente", "NomeCliente", "RazaoSocial", "Aba Cliente", "Empresa", "Fantasia"];
       const alvosLocal = ["LocalAtendimento", "NomeLocal", "Local", "DescricaoLocal"];
       const alvosEndereco = ["Endereco", "Endereço", "Logradouro", "Rua", "End", "EnderecoCliente"];
@@ -1775,7 +1770,6 @@
         const ufVal = extrairSiglaUFValida(rawUF, cidVal);
         const localNome = cLocal && row[cLocal] ? String(row[cLocal]).trim() : localNomeFallback(cidVal, codOS);
         
-        // Pega exclusivamente o valor da coluna Regiao da tabela Unificado
         const regiaoVal = cRegiao && row[cRegiao] && String(row[cRegiao]).trim() !== "" 
           ? String(row[cRegiao]).trim() 
           : "Não Informado";
@@ -1938,7 +1932,7 @@
     }
 
     /* =========================================================================
-       7. FILTROS E SIDEBAR (REGIÃO E ESTADO)
+       7. FILTROS E SIDEBAR COM EXIBIÇÃO CONDICIONAL DE ESTADO (UF)
        ========================================================================= */
     function popularFiltros(dados) {
       const preencherSelect = (id, valores) => {
@@ -1965,7 +1959,16 @@
       preencherSelect('filtro-intervencao', intervencoes);
       preencherSelect('filtro-cliente', clientes);
       preencherSelect('filtro-regiao', regioes);
-      preencherSelect('filtro-estado', estados);
+
+      // Exibição condicional: aparece SOMENTE se houver mais de 1 estado
+      const boxEstado = document.getElementById('box-filtro-estado');
+      if (estados.length > 1) {
+        preencherSelect('filtro-estado', estados);
+        boxEstado.style.display = 'block';
+      } else {
+        boxEstado.style.display = 'none';
+        document.getElementById('filtro-estado').value = 'Todos';
+      }
     }
 
     function renderizarLegendaDinamica(dadosFiltrados) {
