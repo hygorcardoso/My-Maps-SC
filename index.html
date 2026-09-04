@@ -849,18 +849,6 @@
       will-change: transform;
       transform: translateZ(0);
     }
-
-    .empty-state {
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      transform: translate(-50%, -50%);
-      font-size: 1.15rem;
-      font-weight: 500;
-      color: var(--text-muted);
-      text-align: center;
-      z-index: 400;
-    }
   </style>
 </head>
 <body>
@@ -869,7 +857,7 @@
 
   <!-- Sidebar com Logo Interativo para Compactar/Expandir -->
   <aside id="sidebar">
-    <div class="badge-version">v0.8.7 (Filtro Condicional)</div>
+    <div class="badge-version">v0.8.8</div>
     <div class="app-title" id="app-title-container" title="Clique para recolher ou expandir o menu">
       <span class="app-logo-icon">📍</span>
       <span class="app-title-text">My Maps BR</span>
@@ -1091,7 +1079,6 @@
 
     <!-- Mapa -->
     <div id="map-container">
-      <div class="empty-state" id="empty-state">⬅️ Insira a planilha para renderizar os endereços</div>
       <div id="map"></div>
 
       <!-- Overlay de Bloqueio Durante Pesquisa Detalhada -->
@@ -1874,7 +1861,6 @@
     }
 
     function concluirRenderizacaoPosGeocodificacao() {
-      document.getElementById('empty-state').style.display = 'none';
       document.getElementById('btn-remover-arquivo').style.display = 'inline-flex';
       document.getElementById('filtros-container').style.display = 'flex';
       document.getElementById('container-lista').style.display = 'flex';
@@ -1924,7 +1910,6 @@
       document.getElementById('rota-toolbar').style.display = 'none';
       document.getElementById('sidebar-rota-info').style.display = 'none';
       document.getElementById('btn-sugerir-rotas-sidebar').style.display = 'none';
-      document.getElementById('empty-state').style.display = 'block';
 
       abaAtiva = 'geral';
       document.getElementById('tab-geral').classList.add('active');
@@ -2800,6 +2785,9 @@
 
     document.getElementById('btn-calc-rota').addEventListener('click', calcularRotasDiariasHoras);
     document.getElementById('btn-sugerir-rotas-sidebar').addEventListener('click', calcularRotasDiariasHoras);
+
+    // Inicialização direta do mapa ao carregar a página
+    initMap();
   </script>
 </body>
 </html>
