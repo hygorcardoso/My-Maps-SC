@@ -869,7 +869,7 @@
 
   <!-- Sidebar com Logo Interativo para Compactar/Expandir -->
   <aside id="sidebar">
-    <div class="badge-version">v0.8.4 (SLA Chamados)</div>
+    <div class="badge-version">v0.8.5 (Filtros Reais)</div>
     <div class="app-title" id="app-title-container" title="Clique para recolher ou expandir o menu">
       <span class="app-logo-icon">📍</span>
       <span class="app-title-text">My Maps BR</span>
@@ -940,8 +940,13 @@
         </div>
 
         <div>
-          <label>Região / Estado:</label>
+          <label>Região (Unificado):</label>
           <select id="filtro-regiao"><option value="Todos">Todos</option></select>
+        </div>
+
+        <div>
+          <label>Estado (UF):</label>
+          <select id="filtro-estado"><option value="Todos">Todos</option></select>
         </div>
 
         <div class="btn-group">
@@ -1384,6 +1389,7 @@
       return { rua: txt, numero: "" };
     }
 
+    // Geocodificador Detalhado Real com Nominatim / OpenStreetMap
     async function resolverCoordenadaDetalhada(item, index) {
       const ruaBruta = (item.Rua || item.Endereco || "").trim();
       const cidade = (item.Cidade || "").trim();
@@ -1533,7 +1539,7 @@
             ? '<span style="color:#10B981; font-size:10px; font-weight:bold;">🎯 Nível de Rua (Exato)</span>' 
             : '<span style="color:#F59E0B; font-size:10px; font-weight:bold;">📍 Nível de Cidade (Centro)</span>';
 
-          htmlPopup += `<b>Intervenção:</b> ${ch.Intervencao}<br><b>Cliente:</b> ${ch.Cliente}<br><b>Região:</b> ${ch.Regiao}<br><b>Nº Chamado:</b> ${ch.CodOS}<br>`;
+          htmlPopup += `<b>Intervenção:</b> ${ch.Intervencao}<br><b>Cliente:</b> ${ch.Cliente}<br><b>Região:</b> ${ch.Regiao}<br><b>Estado (UF):</b> ${ch.SiglaUF}<br><b>Nº Chamado:</b> ${ch.CodOS}<br>`;
           if (ch.SLA && !["S/N", "NAN"].includes(String(ch.SLA).toUpperCase())) {
             htmlPopup += `<b>Limite Atendimento (SLA):</b> ${ch.SLA}<br>`;
           }
@@ -1619,7 +1625,7 @@
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: 'array', cellDates: true });
 
-      // 1. MAPEIA PRIMEIRO A TABELA 'CHAMADOS' PARA EXTRAIR A COLUNA 'LimiteAtendimento'
+      // 1. Extração da coluna LimiteAtendimento da aba Chamados
       const mapaSlaChamados = new Map();
       let sheetChamadosName = workbook.SheetNames.find(s => normalizar(s).includes("CHAMADOS"));
       
@@ -1659,7 +1665,7 @@
         }
       }
 
-      // 2. FORÇAR A LEITURA PRINCIPAL NA ABA 'UNIFICADO'
+      // 2. Extração de todos os dados principais da aba Unificado
       let targetSheet = null;
       for (const prioridade of ["unificado", "ordem_servico", "chamados", "atendimentos", "rats"]) {
         const found = workbook.SheetNames.find(s => normalizar(s).includes(normalizar(prioridade)));
@@ -1755,10 +1761,14 @@
         const rawUF = cUF && row[cUF] ? String(row[cUF]).trim() : "";
         const ufVal = extrairSiglaUFValida(rawUF, cidVal);
         const localNome = cLocal && row[cLocal] ? String(row[cLocal]).trim() : localNomeFallback(cidVal, codOS);
-        const regiaoVal = cRegiao && row[cRegiao] ? String(row[cRegiao]).trim() : ufVal;
+        
+        // Pega exatamente a Região da planilha Unificado
+        const regiaoVal = cRegiao && row[cRegiao] && String(row[cRegiao]).trim() !== "" 
+          ? String(row[cRegiao]).trim() 
+          : "Não Informado";
+          
         const clienteVal = cCliente && row[cCliente] ? String(row[cCliente]).trim() : "Não Informado";
 
-        // SLA puxado da aba Chamados (coluna LimiteAtendimento) com fallback na Unificado
         let slaFinal = "";
         if (mapaSlaChamados.has(codOS)) {
           slaFinal = mapaSlaChamados.get(codOS);
@@ -1766,7 +1776,6 @@
           slaFinal = formatarValorSLA(row[cSlaUnificado]);
         }
 
-        // Junção dinâmica solicitada: Endereço, Bairro, Cidade - UF
         const partesEndereco = [];
         if (ruaPura && !['nan', 'null', 'undefined'].includes(ruaPura.toLowerCase())) {
           partesEndereco.push(ruaPura);
@@ -1916,7 +1925,7 @@
     }
 
     /* =========================================================================
-       7. FILTROS E SIDEBAR
+       7. FILTROS E SIDEBAR COM CASCAIS REGIAO E ESTADO (UF)
        ========================================================================= */
     function popularFiltros(dados) {
       const preencherSelect = (id, valores) => {
@@ -1924,6 +1933,7 @@
         const atual = select.value;
         select.innerHTML = '<option value="Todos">Todos</option>';
         valores.forEach(v => {
+          if (!v || v === "") return;
           const opt = document.createElement('option');
           opt.value = v;
           opt.textContent = v;
@@ -1934,13 +1944,15 @@
         }
       };
 
-      const intervencoes = [...new Set(dados.map(d => d.Intervencao))].sort();
-      const clientes = [...new Set(dados.map(d => d.Cliente))].sort();
-      const regioes = [...new Set(dados.map(d => d.Regiao))].sort();
+      const intervencoes = [...new Set(dados.map(d => d.Intervencao))].filter(Boolean).sort();
+      const clientes = [...new Set(dados.map(d => d.Cliente))].filter(Boolean).sort();
+      const regioes = [...new Set(dados.map(d => d.Regiao))].filter(Boolean).sort();
+      const estados = [...new Set(dados.map(d => d.SiglaUF))].filter(Boolean).sort();
 
       preencherSelect('filtro-intervencao', intervencoes);
       preencherSelect('filtro-cliente', clientes);
       preencherSelect('filtro-regiao', regioes);
+      preencherSelect('filtro-estado', estados);
     }
 
     function renderizarLegendaDinamica(dadosFiltrados) {
@@ -1970,6 +1982,7 @@
             d.CodOS.toLowerCase().includes(busca) || 
             d.Cidade.toLowerCase().includes(busca) || 
             d.SiglaUF.toLowerCase().includes(busca) ||
+            d.Regiao.toLowerCase().includes(busca) ||
             d.LocalAtendimento.toLowerCase().includes(busca) ||
             d.EnderecoCompleto.toLowerCase().includes(busca)
           )
@@ -2014,11 +2027,13 @@
       const fInterv = document.getElementById('filtro-intervencao').value;
       const fClie = document.getElementById('filtro-cliente').value;
       const fReg = document.getElementById('filtro-regiao').value;
+      const fEst = document.getElementById('filtro-estado').value;
 
       dfFinal = dfRaw.filter(d => {
         if (fInterv !== "Todos" && d.Intervencao !== fInterv) return false;
         if (fClie !== "Todos" && d.Cliente !== fClie) return false;
         if (fReg !== "Todos" && d.Regiao !== fReg) return false;
+        if (fEst !== "Todos" && d.SiglaUF !== fEst) return false;
         return true;
       });
 
@@ -2707,6 +2722,7 @@
 
     document.getElementById('btn-aplicar-filtros').addEventListener('click', () => aplicarFiltros(true));
     document.getElementById('filtro-regiao').addEventListener('change', () => aplicarFiltros(true));
+    document.getElementById('filtro-estado').addEventListener('change', () => aplicarFiltros(true));
     document.getElementById('filtro-intervencao').addEventListener('change', () => aplicarFiltros(true));
     document.getElementById('filtro-cliente').addEventListener('change', () => aplicarFiltros(true));
 
@@ -2714,6 +2730,7 @@
       document.getElementById('filtro-intervencao').value = 'Todos';
       document.getElementById('filtro-cliente').value = 'Todos';
       document.getElementById('filtro-regiao').value = 'Todos';
+      document.getElementById('filtro-estado').value = 'Todos';
       aplicarFiltros(true);
     });
 
