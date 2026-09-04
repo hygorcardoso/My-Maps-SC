@@ -9,33 +9,67 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 
   <style>
+    /* =========================================================================
+       VARIÁVEIS DE TEMA (MODO ESCURO VS MODO CLARO)
+       ========================================================================= */
+    :root {
+      --bg-body: #0e1117;
+      --bg-sidebar: #262730;
+      --bg-card: #1a1c23;
+      --bg-input: #262730;
+      --bg-hover: #31333f;
+      --text-main: #fafafa;
+      --text-muted: #9a9ca1;
+      --border-color: #3e404f;
+      --border-light: rgba(250, 250, 250, 0.08);
+      --map-bg: #12141a;
+      --popup-bg: #1e1e24;
+      --popup-text: #fafafa;
+    }
+
+    body.theme-light {
+      --bg-body: #f4f6f9;
+      --bg-sidebar: #ffffff;
+      --bg-card: #f8fafc;
+      --bg-input: #ffffff;
+      --bg-hover: #e2e8f0;
+      --text-main: #0f172a;
+      --text-muted: #64748b;
+      --border-color: #cbd5e1;
+      --border-light: rgba(15, 23, 42, 0.08);
+      --map-bg: #e2e8f0;
+      --popup-bg: #ffffff;
+      --popup-text: #0f172a;
+    }
+
     * {
       box-sizing: border-box;
       margin: 0;
       padding: 0;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
     }
 
     body {
       display: flex;
       height: 100vh;
       width: 100vw;
-      background-color: #0e1117;
-      color: #fafafa;
+      background-color: var(--bg-body);
+      color: var(--text-main);
       overflow: hidden;
     }
 
-    /* --- SIDEBAR --- */
+    /* --- SIDEBAR EXPANDIDA & COMPACTA (68PX) --- */
     aside {
       position: relative;
       width: 320px;
       height: 100%;
-      background-color: #262730;
+      background-color: var(--bg-sidebar);
       padding: 1.25rem 1rem;
       display: flex;
       flex-direction: column;
       gap: 1.25rem;
-      border-right: 1px solid rgba(250, 250, 250, 0.05);
+      border-right: 1px solid var(--border-color);
       flex-shrink: 0;
       transition: width 0.25s ease, padding 0.25s ease;
       overflow-y: auto;
@@ -44,44 +78,19 @@
     }
 
     aside.collapsed {
-      width: 0;
+      width: 68px;
       padding: 1.25rem 0;
-      border-right: none;
-    }
-
-    .toggle-btn {
-      position: fixed;
-      top: 1rem;
-      left: 305px;
-      width: 28px;
-      height: 28px;
-      background-color: #262730;
-      border: 1px solid rgba(255, 255, 255, 0.15);
-      border-radius: 50%;
-      color: #fafafa;
-      display: flex;
       align-items: center;
-      justify-content: center;
-      cursor: pointer;
-      z-index: 2000;
-      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
-      transition: left 0.25s ease, background-color 0.2s;
+      border-right: 1px solid var(--border-color);
     }
 
-    aside.collapsed + .toggle-btn {
-      left: 10px;
-    }
-
-    .toggle-btn:hover { background-color: #3b3d4a; }
-
-    .badge-version {
-      align-self: flex-start;
-      font-size: 0.7rem;
-      background: rgba(255, 255, 255, 0.08);
-      color: #9a9ca1;
-      padding: 2px 6px;
-      border-radius: 4px;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+    aside.collapsed .badge-version,
+    aside.collapsed .app-title-text,
+    aside.collapsed .upload-card-container,
+    aside.collapsed .btn-sugerir-rotas,
+    aside.collapsed .expander-container,
+    aside.collapsed #sidebar-rota-info {
+      display: none !important;
     }
 
     .app-title {
@@ -90,11 +99,56 @@
       display: flex;
       align-items: center;
       gap: 0.5rem;
-      padding-bottom: 0.8rem;
-      border-bottom: 1px solid rgba(250, 250, 250, 0.1);
+      padding: 0.4rem 0.6rem;
+      border-radius: 8px;
+      cursor: pointer;
+      user-select: none;
+      border-bottom: 1px solid var(--border-light);
+      transition: background-color 0.2s, transform 0.1s;
     }
 
-    /* Card de Upload e Remoção de Planilha */
+    .app-title:hover {
+      background-color: var(--bg-hover);
+    }
+
+    .app-title:active {
+      transform: scale(0.97);
+    }
+
+    aside.collapsed .app-title {
+      border-bottom: none;
+      padding: 0.4rem;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border-radius: 10px;
+    }
+
+    .app-logo-icon {
+      font-size: 1.4rem;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-shrink: 0;
+    }
+
+    aside.collapsed .sidebar-footer {
+      border-top: none;
+      justify-content: center;
+      width: 100%;
+      padding-top: 0;
+    }
+
+    .badge-version {
+      align-self: flex-start;
+      font-size: 0.7rem;
+      background: var(--border-light);
+      color: var(--text-muted);
+      padding: 2px 6px;
+      border-radius: 4px;
+      border: 1px solid var(--border-color);
+    }
+
     .upload-card-container {
       display: flex;
       flex-direction: column;
@@ -102,8 +156,8 @@
     }
 
     .upload-card {
-      background-color: #1a1c23;
-      border: 1px solid rgba(255, 255, 255, 0.1);
+      background-color: var(--bg-card);
+      border: 1px solid var(--border-color);
       border-radius: 8px;
       padding: 0.75rem 1rem;
       display: flex;
@@ -111,10 +165,9 @@
       justify-content: space-between;
       gap: 0.5rem;
       cursor: pointer;
-      transition: border-color 0.2s;
     }
 
-    .upload-card:hover { border-color: rgba(255, 255, 255, 0.3); }
+    .upload-card:hover { border-color: #007BFF; }
 
     .upload-card-content {
       display: flex;
@@ -130,16 +183,16 @@
       align-items: center;
       gap: 0.4rem;
       font-size: 0.85rem;
-      color: #fafafa;
-      background: rgba(255, 255, 255, 0.08);
-      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: var(--text-main);
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-color);
       padding: 0.35rem 0.65rem;
       border-radius: 4px;
     }
 
     .upload-info {
       font-size: 0.7rem;
-      color: #7b7e87;
+      color: var(--text-muted);
       word-break: break-all;
       white-space: nowrap;
       overflow: hidden;
@@ -159,18 +212,48 @@
       justify-content: center;
       cursor: pointer;
       flex-shrink: 0;
-      transition: all 0.2s;
     }
     .btn-remover-arquivo:hover {
       background: #ef4444;
       color: #ffffff;
     }
 
-    /* --- EXPANDER MENUS --- */
-    .expander-container {
-      background: #1e1e24;
+    .progress-box {
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      padding: 10px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
       border-radius: 8px;
-      border: 1px solid #3e404f;
+      margin-top: 4px;
+    }
+    .progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-color);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, #007BFF, #6366f1);
+      transition: width 0.1s linear;
+    }
+    .progress-text {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+      font-weight: 500;
+    }
+
+    .expander-container {
+      background: var(--bg-card);
+      border-radius: 8px;
+      border: 1px solid var(--border-color);
       overflow: hidden;
       display: flex;
       flex-direction: column;
@@ -183,18 +266,14 @@
       padding: 0.75rem;
       cursor: pointer;
       user-select: none;
-      background-color: #1e1e24;
-      transition: background-color 0.2s;
+      background-color: var(--bg-card);
     }
-
-    .expander-header:hover {
-      background-color: #262730;
-    }
+    .expander-header:hover { background-color: var(--bg-hover); }
 
     .expander-title {
       font-size: 0.85rem;
       font-weight: 600;
-      color: #fafafa;
+      color: var(--text-main);
       display: flex;
       align-items: center;
       gap: 0.4rem;
@@ -203,40 +282,34 @@
     .expander-icon {
       width: 14px;
       height: 14px;
-      color: #9a9ca1;
+      color: var(--text-muted);
       transition: transform 0.2s ease;
       flex-shrink: 0;
     }
-
-    .expander-container.open .expander-icon {
-      transform: rotate(180deg);
-    }
+    .expander-container.open .expander-icon { transform: rotate(180deg); }
 
     .expander-body {
       display: none;
       flex-direction: column;
       gap: 0.75rem;
       padding: 0 0.75rem 0.75rem 0.75rem;
-      border-top: 1px solid rgba(255, 255, 255, 0.05);
-      background: #1e1e24;
+      border-top: 1px solid var(--border-light);
+      background: var(--bg-card);
     }
-
-    .expander-container.open .expander-body {
-      display: flex;
-    }
+    .expander-container.open .expander-body { display: flex; }
 
     .expander-body label {
       font-size: 0.75rem;
-      color: #9a9ca1;
+      color: var(--text-muted);
       margin-bottom: 2px;
       display: block;
     }
 
-    select, input[type="text"] {
+    select, input[type="text"], input[type="number"] {
       width: 100%;
-      background-color: #262730;
-      border: 1px solid #464855;
-      color: #fafafa;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
       padding: 6px 8px;
       border-radius: 4px;
       font-size: 0.8rem;
@@ -265,7 +338,7 @@
       gap: 6px;
     }
     .btn-primary:hover { background-color: #0056b3; }
-    .btn-primary:disabled { background-color: #3b3d4a; cursor: not-allowed; }
+    .btn-primary:disabled { background-color: var(--border-color); cursor: not-allowed; }
 
     .btn-sugerir-rotas {
       background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
@@ -281,15 +354,13 @@
       justify-content: center;
       gap: 8px;
       box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
-      transition: all 0.2s ease;
     }
     .btn-sugerir-rotas:hover {
       background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-      box-shadow: 0 6px 18px rgba(99, 102, 241, 0.5);
       transform: translateY(-1px);
     }
     .btn-sugerir-rotas:disabled {
-      background: #3b3d4a;
+      background: var(--border-color);
       box-shadow: none;
       cursor: not-allowed;
       transform: none;
@@ -297,69 +368,64 @@
 
     .btn-secondary {
       flex: 1;
-      background-color: #3b3d4a;
-      color: white;
-      border: none;
+      background-color: var(--bg-hover);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
       padding: 8px;
       border-radius: 6px;
       font-size: 0.8rem;
       font-weight: bold;
       cursor: pointer;
     }
-    .btn-secondary:hover { background-color: #4a4d57; }
+    .btn-secondary:hover { background-color: var(--border-color); }
 
-    /* Lista Interna dos Chamados */
     .lista-chamados-container {
       max-height: 260px;
       overflow-y: auto;
-      background-color: #1a1c23;
+      background-color: var(--bg-sidebar);
       padding: 6px;
       border-radius: 6px;
-      border: 1px solid #3e404f;
+      border: 1px solid var(--border-color);
       display: flex;
       flex-direction: column;
       gap: 6px;
     }
 
     .chamado-item-btn {
-      background: #262730;
-      color: #e0e0e0;
-      border: 1px solid #464855;
-      border-left: 6px solid #464855;
+      background: var(--bg-card);
+      color: var(--text-main);
+      border: 1px solid var(--border-color);
+      border-left: 6px solid var(--border-color);
       padding: 8px 10px;
       text-align: left;
       font-size: 11px;
       font-family: monospace;
       border-radius: 4px;
       cursor: pointer;
-      transition: background-color 0.15s;
     }
-    .chamado-item-btn:hover { background-color: #31333f; }
+    .chamado-item-btn:hover { background-color: var(--bg-hover); }
     .chamado-item-btn.selected {
       border-color: #007BFF;
-      background-color: #2b3040;
+      background-color: rgba(0, 123, 255, 0.15);
     }
 
-    /* Cards de Dias de Rotas */
     .dia-card-option {
-      background: #1a1c23;
-      border: 2px solid #3e404f;
+      background: var(--bg-card);
+      border: 2px solid var(--border-color);
       padding: 10px 12px;
       border-radius: 8px;
       margin-top: 8px;
       cursor: pointer;
-      transition: border-color 0.15s, background-color 0.15s;
     }
     .dia-card-option:hover {
       border-color: #6366f1;
-      background: #22252e;
+      background: var(--bg-hover);
     }
     .dia-card-option.active {
       border-color: #6366f1;
       background: rgba(99, 102, 241, 0.15);
     }
 
-    /* Pins e Marcadores */
     .map-pin {
       position: relative;
       width: 34px;
@@ -369,10 +435,7 @@
       transform: translateZ(0);
     }
     .map-pin:active { cursor: grabbing; }
-    .map-pin svg {
-      width: 100%;
-      height: 100%;
-    }
+    .map-pin svg { width: 100%; height: 100%; }
 
     .route-label-badge {
       background-color: #1e293b;
@@ -397,7 +460,230 @@
       border-color: #ffffff;
     }
 
-    /* --- CONTEÚDO PRINCIPAL --- */
+    .leaflet-tile-pane.map-dark-mode {
+      filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
+    }
+
+    .leaflet-popup-content-wrapper {
+      background-color: var(--popup-bg) !important;
+      color: var(--popup-text) !important;
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+    .leaflet-popup-tip {
+      background-color: var(--popup-bg) !important;
+    }
+
+    .sidebar-footer {
+      margin-top: auto;
+      display: flex;
+      align-items: center;
+      justify-content: flex-start;
+      padding-top: 0.75rem;
+      border-top: 1px solid var(--border-light);
+    }
+
+    .btn-settings {
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      flex-shrink: 0;
+    }
+    .btn-settings:hover {
+      background: var(--bg-hover);
+      color: var(--text-main);
+      border-color: #6366f1;
+      transform: rotate(45deg);
+    }
+
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0; left: 0; width: 100vw; height: 100vh;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(3px);
+      z-index: 3000;
+      align-items: center;
+      justify-content: center;
+    }
+    .modal-overlay.open { display: flex; }
+
+    .modal-card {
+      background: var(--bg-sidebar);
+      border: 1px solid var(--border-color);
+      border-radius: 12px;
+      width: 90%;
+      max-width: 440px;
+      padding: 1.5rem;
+      box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
+      display: flex;
+      flex-direction: column;
+      gap: 1.25rem;
+      color: var(--text-main);
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-light);
+      padding-bottom: 0.75rem;
+    }
+
+    .modal-title {
+      font-size: 1.05rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+    }
+
+    .modal-close-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.3rem;
+      cursor: pointer;
+    }
+    .modal-close-btn:hover { color: var(--text-main); }
+
+    .modal-body {
+      display: flex;
+      flex-direction: column;
+      gap: 1.1rem;
+    }
+
+    .config-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+    }
+
+    .config-field label {
+      font-size: 0.8rem;
+      color: var(--text-main);
+      font-weight: 600;
+    }
+
+    .config-field small {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+    }
+
+    .theme-buttons-container {
+      display: flex;
+      gap: 0.5rem;
+      margin-top: 4px;
+    }
+
+    .btn-toggle-option {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 8px 12px;
+      border-radius: 6px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid var(--border-color);
+      background: var(--bg-card);
+      color: var(--text-muted);
+    }
+    .btn-toggle-option:hover { background: var(--bg-hover); }
+    .btn-toggle-option.active {
+      border-color: #007BFF;
+      background: rgba(0, 123, 255, 0.15);
+      color: var(--text-main);
+      box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
+    }
+
+    .toggle-switch-container {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 12px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-color);
+      border-radius: 8px;
+    }
+
+    .switch-info {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .switch-label {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-main);
+    }
+
+    .switch {
+      position: relative;
+      display: inline-block;
+      width: 44px;
+      height: 24px;
+      flex-shrink: 0;
+    }
+    .switch input { opacity: 0; width: 0; height: 0; }
+
+    .slider {
+      position: absolute;
+      cursor: pointer;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background-color: #64748b;
+      transition: 0.3s;
+      border-radius: 24px;
+    }
+
+    .slider:before {
+      position: absolute;
+      content: "";
+      height: 18px;
+      width: 18px;
+      left: 3px;
+      bottom: 3px;
+      background-color: white;
+      transition: 0.3s;
+      border-radius: 50%;
+    }
+    input:checked + .slider { background-color: #007BFF; }
+    input:checked + .slider:before { transform: translateX(20px); }
+
+    .map-loading-overlay {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(14, 17, 23, 0.92);
+      backdrop-filter: blur(5px);
+      z-index: 1500;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 14px;
+      color: #fafafa;
+    }
+    .spinner {
+      width: 46px;
+      height: 46px;
+      border: 4px solid rgba(255, 255, 255, 0.1);
+      border-left-color: #007BFF;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+    }
+    @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
     main {
       flex: 1;
       display: flex;
@@ -409,11 +695,11 @@
 
     .tabs-bar {
       display: flex;
-      background-color: #1E1E24;
+      background-color: var(--bg-sidebar);
       padding: 6px 12px;
       margin: 10px 15px 0 15px;
       border-radius: 8px;
-      border: 1px solid #3e404f;
+      border: 1px solid var(--border-color);
       gap: 8px;
       align-items: center;
       z-index: 500;
@@ -422,14 +708,13 @@
     .tab-btn {
       background: transparent;
       border: none;
-      color: #E0E0E0;
+      color: var(--text-muted);
       font-size: 13px;
       font-weight: bold;
       padding: 6px 16px;
       border-radius: 6px;
       cursor: pointer;
     }
-
     .tab-btn.active {
       background-color: #007BFF;
       color: #FFFFFF;
@@ -440,10 +725,10 @@
       gap: 10px;
       align-items: center;
       padding: 8px 15px;
-      background: #1a1c23;
+      background: var(--bg-card);
       margin: 8px 15px 0 15px;
       border-radius: 6px;
-      border: 1px solid #3e404f;
+      border: 1px solid var(--border-color);
       z-index: 500;
       position: relative;
     }
@@ -456,9 +741,9 @@
 
     .multiselect-btn {
       width: 100%;
-      background-color: #262730;
-      border: 1px solid #464855;
-      color: #fafafa;
+      background-color: var(--bg-input);
+      border: 1px solid var(--border-color);
+      color: var(--text-main);
       padding: 7px 10px;
       border-radius: 4px;
       font-size: 0.8rem;
@@ -479,14 +764,13 @@
       right: 0;
       max-height: 250px;
       overflow-y: auto;
-      background-color: #1e1e24;
-      border: 1px solid #3e404f;
+      background-color: var(--bg-sidebar);
+      border: 1px solid var(--border-color);
       border-radius: 6px;
       padding: 6px;
       z-index: 2000;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
-
     .multiselect-list.open {
       display: flex;
       flex-direction: column;
@@ -500,11 +784,10 @@
       padding: 6px 8px;
       border-radius: 4px;
       font-size: 0.8rem;
-      color: #e0e0e0;
+      color: var(--text-main);
       cursor: pointer;
     }
-
-    .multiselect-item:hover { background-color: #262730; }
+    .multiselect-item:hover { background-color: var(--bg-hover); }
     .multiselect-item input[type="checkbox"] { width: auto; cursor: pointer; }
 
     #map-container {
@@ -513,24 +796,25 @@
       margin: 10px 15px 15px 15px;
       border-radius: 8px;
       overflow: hidden;
-      border: 1px solid #3e404f;
+      border: 1px solid var(--border-color);
       position: relative;
+      background-color: var(--map-bg);
     }
 
     #map {
       width: 100%;
       height: 100%;
-      background-color: #0e1117;
+      background-color: var(--map-bg);
     }
 
     .legenda-container {
       display: flex;
       flex-wrap: wrap;
       gap: 12px;
-      background-color: #1E1E24;
+      background-color: var(--bg-sidebar);
       padding: 10px 15px;
       border-radius: 8px;
-      border: 1px solid #3e404f;
+      border: 1px solid var(--border-color);
       margin: 0 15px 10px 15px;
       max-height: 90px;
       overflow-y: auto;
@@ -542,7 +826,7 @@
       gap: 6px;
       font-size: 12px;
       font-weight: 500;
-      color: #E0E0E0;
+      color: var(--text-main);
     }
 
     .legenda-cor {
@@ -573,7 +857,7 @@
       transform: translate(-50%, -50%);
       font-size: 1.15rem;
       font-weight: 500;
-      color: #fafafa;
+      color: var(--text-muted);
       text-align: center;
       z-index: 400;
     }
@@ -583,15 +867,15 @@
 
   <input type="file" id="file-input" accept=".xlsx, .xls" style="display: none;" />
 
-  <!-- Sidebar -->
+  <!-- Sidebar com Logo Interativo para Compactar/Expandir -->
   <aside id="sidebar">
-    <div class="badge-version">v0.6.0 (Brasil Completo)</div>
-    <div class="app-title">
-      <span>📍</span>
-      <span>My Maps BR</span>
+    <div class="badge-version">v0.8.4 (SLA Chamados)</div>
+    <div class="app-title" id="app-title-container" title="Clique para recolher ou expandir o menu">
+      <span class="app-logo-icon">📍</span>
+      <span class="app-title-text">My Maps BR</span>
     </div>
 
-    <!-- Upload / Remoção -->
+    <!-- Upload / Remoção e Barra de Progresso -->
     <div class="upload-card-container">
       <div class="upload-card" id="upload-card">
         <div class="upload-card-content">
@@ -614,6 +898,16 @@
           </svg>
         </button>
       </div>
+
+      <div class="progress-box" id="progress-box">
+        <div class="progress-bar-bg">
+          <div class="progress-bar-fill" id="progress-fill"></div>
+        </div>
+        <div class="progress-text">
+          <span id="progress-status">Buscando endereço exato...</span>
+          <span id="progress-count">0%</span>
+        </div>
+      </div>
     </div>
 
     <!-- Botão Sugerir Melhores Rotas -->
@@ -622,7 +916,7 @@
         <circle cx="12" cy="12" r="10"></circle>
         <polyline points="12 6 12 12 16 14"></polyline>
       </svg>
-      <span>🧠 Rotas Diárias de 5 Horas</span>
+      <span id="label-btn-rotas">🧠 Rotas Diárias de 5 Horas</span>
     </button>
 
     <!-- Filtros Recolhíveis -->
@@ -673,15 +967,95 @@
     </div>
 
     <!-- Info Rota Sidebar -->
-    <div id="sidebar-rota-info" style="display: none; background:#1e1e24; padding:12px; border-radius:8px; font-size:13px; border:1px solid #3e404f;"></div>
+    <div id="sidebar-rota-info" style="display: none; background:var(--bg-card); padding:12px; border-radius:8px; font-size:13px; border:1px solid var(--border-color);"></div>
+
+    <!-- Rodapé com Botão de Manutenção (Sempre visível nos dois modos) -->
+    <div class="sidebar-footer">
+      <button class="btn-settings" id="btn-abrir-settings" title="Configurações e Manutenção">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <circle cx="12" cy="12" r="3"></circle>
+          <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
+        </svg>
+      </button>
+    </div>
   </aside>
 
-  <!-- Botão Toggle Sidebar -->
-  <button class="toggle-btn" id="toggle-btn">
-    <svg id="toggle-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-      <polyline points="15 18 9 12 15 6"></polyline>
-    </svg>
-  </button>
+  <!-- Modal de Configurações -->
+  <div class="modal-overlay" id="modal-settings">
+    <div class="modal-card">
+      <div class="modal-header">
+        <div class="modal-title">
+          <span>⚙️</span>
+          <span>Ajustes da Aplicação</span>
+        </div>
+        <button class="modal-close-btn" id="btn-fechar-settings">&times;</button>
+      </div>
+      <div class="modal-body">
+        
+        <!-- MODO DE PESQUISA -->
+        <div class="config-field">
+          <label>Modo de Geocodificação (Precisão vs. Tempo):</label>
+          <div class="theme-buttons-container">
+            <button class="btn-toggle-option" id="btn-busca-rapida">
+              <span>⚡ Rápida</span>
+            </button>
+            <button class="btn-toggle-option" id="btn-busca-detalhada">
+              <span>🎯 Detalhada</span>
+            </button>
+          </div>
+          <small id="desc-modo-busca">⚡ Rápida: Carregamento instantâneo via cidades e memória.</small>
+        </div>
+
+        <!-- Tema Geral da Página -->
+        <div class="config-field">
+          <label>Tema da Aplicação:</label>
+          <div class="theme-buttons-container">
+            <button class="btn-toggle-option" id="btn-tema-claro">
+              <span>☀️ Modo Claro</span>
+            </button>
+            <button class="btn-toggle-option" id="btn-tema-escuro">
+              <span>🌙 Modo Escuro</span>
+            </button>
+          </div>
+          <small>Altera as cores de toda a interface do sistema.</small>
+        </div>
+
+        <!-- Botão ON/OFF mapa -->
+        <div class="toggle-switch-container">
+          <div class="switch-info">
+            <span class="switch-label">Sincronizar mapa com o tema</span>
+            <small style="color: var(--text-muted); font-size: 0.7rem;">Aplica o modo escuro ao OpenStreetMap automaticamente.</small>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="chk-sincronizar-mapa" checked>
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="config-field">
+          <label for="cfg-limite-horas">Jornada Diária de Atendimento (Horas):</label>
+          <input type="number" id="cfg-limite-horas" min="1" max="12" step="0.5" value="5" />
+          <small>Tempo limite total de trânsito + serviços por dia.</small>
+        </div>
+
+        <div class="config-field">
+          <label for="cfg-tempo-atendimento">Tempo Médio por Chamado (Minutos):</label>
+          <input type="number" id="cfg-tempo-atendimento" min="10" max="180" step="5" value="45" />
+          <small>Tempo estimado de permanência técnica em cada cliente.</small>
+        </div>
+
+        <div class="config-field" style="margin-top: 0.25rem;">
+          <button class="btn-secondary" id="btn-limpar-cache-app" style="background: rgba(239, 68, 68, 0.15); border: 1px solid #ef4444; color: #ef4444;">
+            🗑️ Limpar Todo o Cache de Coordenadas
+          </button>
+        </div>
+
+        <button class="btn-primary" id="btn-salvar-settings" style="margin-top: 0.5rem;">
+          💾 Salvar Ajustes
+        </button>
+      </div>
+    </div>
+  </div>
 
   <!-- Painel Principal -->
   <main>
@@ -694,7 +1068,6 @@
     <div class="rota-toolbar" id="rota-toolbar">
       <input type="text" id="rota-saida" placeholder="🏠 Saída (ex: São Paulo - SP ou Videira - SC)" style="flex: 1.5;" />
       
-      <!-- Multi-Select Dropdown -->
       <div class="multiselect-dropdown" id="multiselect-dropdown">
         <div class="multiselect-btn" id="multiselect-btn">
           <span id="multiselect-btn-text">🏁 Selecionar Destinos (0)</span>
@@ -714,6 +1087,19 @@
     <div id="map-container">
       <div class="empty-state" id="empty-state">⬅️ Insira a planilha para renderizar os endereços</div>
       <div id="map"></div>
+
+      <!-- Overlay de Bloqueio Durante Pesquisa Detalhada -->
+      <div class="map-loading-overlay" id="map-loading-overlay">
+        <div class="spinner"></div>
+        <div style="font-weight: 700; font-size: 1.05rem;" id="overlay-status-title">Geocodificando Ruas Reais...</div>
+        <div style="font-size: 0.85rem; color: #94a3b8;" id="overlay-status-sub">Buscando coordenadas exatas no OpenStreetMap antes de plotar no mapa.</div>
+        <div style="width: 280px; margin-top: 6px;">
+          <div class="progress-bar-bg" style="height: 10px;">
+            <div class="progress-bar-fill" id="overlay-progress-fill"></div>
+          </div>
+          <div style="font-size: 0.75rem; text-align: center; margin-top: 4px; color: #cbd5e1;" id="overlay-progress-text">0 de 0 (0%)</div>
+        </div>
+      </div>
     </div>
 
     <!-- Legenda Dinâmica -->
@@ -726,119 +1112,118 @@
 
   <script>
     /* =========================================================================
-       1. CENTROIDES OFICIAIS DOS 27 ESTADOS DO BRASIL (FALLBACK SEGURO)
+       1. CONFIGURAÇÕES & DICIONÁRIO COMPLETO DO BRASIL
        ========================================================================= */
+    let TEMPO_MEDIO_ATENDIMENTO_MIN = 45; 
+    let LIMITE_DIARIO_MINUTOS = 300; 
+    let temaAppAtual = "escuro";          
+    let sincronizarComMapa = true;         
+    let modoPesquisa = "rapida";          // "rapida" ou "detalhada"
+
     const CENTROIDES_ESTADOS_BR = {
-      "AC": [-8.77, -70.55],
-      "AL": [-9.71, -35.73],
-      "AM": [-3.07, -61.66],
-      "AP": [1.41, -51.77],
-      "BA": [-12.96, -38.51],
-      "CE": [-3.71, -38.54],
-      "DF": [-15.78, -47.93],
-      "ES": [-19.19, -40.34],
-      "GO": [-16.64, -49.31],
-      "MA": [-2.55, -44.30],
-      "MG": [-18.10, -44.38],
-      "MS": [-20.51, -54.54],
-      "MT": [-12.64, -55.42],
-      "PA": [-5.53, -52.29],
-      "PB": [-7.06, -35.55],
-      "PE": [-8.28, -35.07],
-      "PI": [-8.28, -43.68],
-      "PR": [-24.89, -51.55],
-      "RJ": [-22.84, -43.15],
-      "RN": [-5.22, -36.52],
-      "RO": [-11.22, -62.80],
-      "RR": [1.89, -61.22],
-      "RS": [-30.01, -51.22],
-      "SC": [-27.33, -49.44],
-      "SE": [-10.90, -37.07],
-      "SP": [-23.55, -46.64],
-      "TO": [-10.25, -48.25]
+      "AC": [-8.77, -70.55], "AL": [-9.71, -35.73], "AM": [-3.07, -61.66],
+      "AP": [1.41, -51.77],  "BA": [-12.96, -38.51], "CE": [-3.71, -38.54],
+      "DF": [-15.78, -47.93], "ES": [-19.19, -40.34], "GO": [-16.64, -49.31],
+      "MA": [-2.55, -44.30], "MG": [-18.10, -44.38], "MS": [-20.51, -54.54],
+      "MT": [-12.64, -55.42], "PA": [-5.53, -52.29], "PB": [-7.06, -35.55],
+      "PE": [-8.28, -35.07], "PI": [-8.28, -43.68], "PR": [-24.89, -51.55],
+      "RJ": [-22.84, -43.15], "RN": [-5.22, -36.52], "RO": [-11.22, -62.80],
+      "RR": [1.89, -61.22],  "RS": [-30.01, -51.22], "SC": [-27.33, -49.44],
+      "SE": [-10.90, -37.07], "SP": [-23.55, -46.64], "TO": [-10.25, -48.25]
     };
 
-    /* =========================================================================
-       2. BASE NACIONAL DE CIDADES E CAPITAIS DO BRASIL (0ms)
-       ========================================================================= */
     const BASE_CIDADES_BRASIL = {
-      // CAPITAIS E GRANDES POLOS (NACIONAL)
-      "SAO PAULO-SP": [-23.5505, -46.6333], "RIO DE JANEIRO-RJ": [-22.9068, -43.1729],
-      "BELO HORIZONTE-MG": [-19.9167, -43.9345], "BRASILIA-DF": [-15.7801, -47.9292],
-      "SALVADOR-BA": [-12.9714, -38.5014], "FORTALEZA-CE": [-3.7172, -38.5433],
-      "RECIFE-PE": [-8.0578, -34.8778], "CURITIBA-PR": [-25.4284, -49.2733],
-      "PORTO ALEGRE-RS": [-30.0346, -51.2177], "MANAUS-AM": [-3.1190, -60.0217],
-      "BELEM-PA": [-1.4558, -48.4902], "GOIANIA-GO": [-16.6869, -49.2648],
-      "CAMPO GRANDE-MS": [-20.4697, -54.6201], "CUIABA-MT": [-15.6010, -56.0974],
-      "SAO LUIS-MA": [-2.5307, -44.3068], "MACEIO-AL": [-9.6658, -35.7351],
-      "NATAL-RN": [-5.7945, -35.2110], "TERESINA-PI": [-5.0919, -42.8034],
-      "JOAO PESSOA-PB": [-7.1150, -34.8641], "ARACAJU-SE": [-10.9472, -37.0731],
-      "FLORIANOPOLIS-SC": [-27.5954, -48.5480], "PORTO VELHO-RO": [-8.7619, -63.9039],
-      "MACAPA-AP": [0.0356, -51.0705], "RIO BRANCO-AC": [-9.9749, -67.8243],
-      "VITORIA-ES": [-20.3155, -40.3128], "BOA VISTA-RR": [2.8235, -60.6758],
-      "PALMAS-TO": [-10.1844, -48.3336],
+      // SC
+      "PIRATUBA-SC": [-27.4209, -51.7725],
+      "SAO JOSE-SC": [-27.6146, -48.6353],
+      "CONCORDIA-SC": [-27.2342, -52.0286],
+      "CHAPECO-SC": [-27.1004, -52.6152],
+      "VIDEIRA-SC": [-27.0084, -51.1528],
+      "JOACABA-SC": [-27.1751, -51.5042],
+      "HERVAL D OESTE-SC": [-27.1828, -51.4967],
+      "CACADOR-SC": [-26.7753, -51.0125],
+      "ZORTEA-SC": [-27.4514, -51.5542],
+      "CAMPOS NOVOS-SC": [-27.4019, -51.2253],
+      "CAPINZAL-SC": [-27.3481, -51.6119],
+      "LUZERNA-SC": [-27.1304, -51.4682],
+      "SEARA-SC": [-27.1481, -52.3117],
+      "XANXERE-SC": [-26.8747, -52.4036],
+      "FLORIANOPOLIS-SC": [-27.5954, -48.5480],
+      "JOINVILLE-SC": [-26.3045, -48.8487],
+      "BLUMENAU-SC": [-26.9194, -49.0661],
+      "ITAJAI-SC": [-26.9078, -48.6619],
+      "CRICIUMA-SC": [-28.6775, -49.3704],
+      "LAGES-SC": [-27.8161, -50.3260],
+      "NAVEGANTES-SC": [-26.8914, -48.6548],
+      "BALNEARIO CAMBORIU-SC": [-26.9928, -48.6350],
+      "TUBARAO-SC": [-28.4735, -49.0074],
+      "ARARANGUA-SC": [-28.9356, -49.4850],
+      "SAO CRISTOVAO DO SUL-SC": [-27.2666, -50.4388],
+      "PORTO BELO-SC": [-27.1578, -48.5528],
+      "CAMBORIU-SC": [-27.0250, -48.6539],
+      "POMERODE-SC": [-26.7408, -49.1769],
+      "XAXIM-SC": [-26.9617, -52.5347],
+      "GARUVA-SC": [-26.0269, -48.8550],
+      "SAO JOAO BATISTA-SC": [-27.2758, -48.8489],
+      "TAIO-SC": [-27.1164, -49.9981],
+      "AGRONOMICA-SC": [-27.2650, -49.7108],
+      "BENEDITO NOVO-SC": [-26.8000, -49.4170],
+      "SAO JOAO DO SUL-SC": [-29.2238, -49.8110],
 
-      // SÃO PAULO
-      "CAMPINAS-SP": [-22.9099, -47.0626], "GUARULHOS-SP": [-23.4542, -46.5333],
-      "SAO BERNARDO DO CAMPO-SP": [-23.6944, -46.5653], "SANTO ANDRE-SP": [-23.6639, -46.5383],
-      "OSASCO-SP": [-23.5329, -46.7920], "SOROCABA-SP": [-23.5015, -47.4526],
-      "RIBEIRAO PRETO-SP": [-21.1767, -47.8208], "SAO JOSE DOS CAMPOS-SP": [-23.1791, -45.8872],
-      "SANTOS-SP": [-23.9608, -46.3336], "SAO JOSE DO RIO PRETO-SP": [-20.8113, -49.3758],
-      "BAURU-SP": [-22.3145, -49.0587], "PIRACICABA-SP": [-22.7338, -47.6476],
-      "FRANCA-SP": [-20.5386, -47.4008], "JUNDIAI-SP": [-23.1857, -46.8978],
+      // SP
+      "SAO PAULO-SP": [-23.5505, -46.6333],
+      "SAO JOSE DOS CAMPOS-SP": [-23.1791, -45.8872],
+      "SAO JOSE DO RIO PRETO-SP": [-20.8113, -49.3758],
+      "SAO BERNARDO DO CAMPO-SP": [-23.6944, -46.5653],
+      "SANTO ANDRE-SP": [-23.6639, -46.5383],
+      "CAMPINAS-SP": [-22.9099, -47.0626],
+      "GUARULHOS-SP": [-23.4542, -46.5333],
+      "SOROCABA-SP": [-23.5015, -47.4526],
+      "RIBEIRAO PRETO-SP": [-21.1767, -47.8208],
+      "SANTOS-SP": [-23.9608, -46.3336],
 
-      // RIO DE JANEIRO & MINAS GERAIS
-      "DUQUE DE CAXIAS-RJ": [-22.7856, -43.3117], "NITEROI-RJ": [-22.8833, -43.1036],
-      "SAO GONCALO-RJ": [-22.8268, -43.0537], "NOVA IGUACU-RJ": [-22.7556, -43.4603],
-      "CAMPOS DOS GOYTACAZES-RJ": [-21.7545, -41.3244], "VOLTA REDONDA-RJ": [-22.5231, -44.1042],
-      "UBERLANDIA-MG": [-18.9186, -48.2772], "CONTAGEM-MG": [-19.9386, -44.0536],
-      "JUIZ DE FORA-MG": [-21.7587, -43.3496], "BETIM-MG": [-19.9678, -44.1983],
-      "MONTES CLAROS-MG": [-16.7282, -43.8617], "UBERABA-MG": [-19.7472, -47.9392],
+      // RJ & MG
+      "RIO DE JANEIRO-RJ": [-22.9068, -43.1729],
+      "DUQUE DE CAXIAS-RJ": [-22.7856, -43.3117],
+      "NITEROI-RJ": [-22.8833, -43.1036],
+      "BELO HORIZONTE-MG": [-19.9167, -43.9345],
+      "UBERLANDIA-MG": [-18.9186, -48.2772],
+      "CONTAGEM-MG": [-19.9386, -44.0536],
 
-      // SUL (SC, PR, RS)
-      "CONCORDIA-SC": [-27.2342, -52.0286], "CHAPECO-SC": [-27.1004, -52.6152],
-      "VIDEIRA-SC": [-27.0084, -51.1528], "JOACABA-SC": [-27.1751, -51.5042],
-      "CACADOR-SC": [-26.7753, -51.0125], "ZORTEA-SC": [-27.4514, -51.5542],
-      "JOINVILLE-SC": [-26.3045, -48.8487], "BLUMENAU-SC": [-26.9194, -49.0661],
-      "ITAJAI-SC": [-26.9078, -48.6619], "CRICIUMA-SC": [-28.6775, -49.3704],
-      "LAGES-SC": [-27.8161, -50.3260], "CASCAVEL-PR": [-24.9578, -53.4595],
-      "LONDRINA-PR": [-23.3045, -51.1696], "MARINGA-PR": [-23.4209, -51.9331],
-      "FOZ DO IGUACU-PR": [-25.5163, -54.5854], "PASSO FUNDO-RS": [-28.2628, -52.4067],
-      "CAXIAS DO SUL-RS": [-29.1678, -51.1794], "PELOTAS-RS": [-31.7654, -52.3376],
-      "SANTA MARIA-RS": [-29.6842, -53.8069]
+      // DEMAIS CAPITAIS
+      "BRASILIA-DF": [-15.7801, -47.9292],
+      "CURITIBA-PR": [-25.4284, -49.2733],
+      "CASCAVEL-PR": [-24.9578, -53.4595],
+      "LONDRINA-PR": [-23.3045, -51.1696],
+      "MARINGA-PR": [-23.4209, -51.9331],
+      "PORTO ALEGRE-RS": [-30.0346, -51.2177],
+      "PASSO FUNDO-RS": [-28.2628, -52.4067],
+      "CAXIAS DO SUL-RS": [-29.1678, -51.1794],
+      "SALVADOR-BA": [-12.9714, -38.5014],
+      "FORTALEZA-CE": [-3.7172, -38.5433],
+      "RECIFE-PE": [-8.0578, -34.8778],
+      "GOIANIA-GO": [-16.6869, -49.2648],
+      "MANAUS-AM": [-3.1190, -60.0217],
+      "BELEM-PA": [-1.4558, -48.4902],
+      "CAMPO GRANDE-MS": [-20.4697, -54.6201],
+      "CUIABA-MT": [-15.6010, -56.0974]
     };
 
     const CORES_INTERVENCAO = {
-      "Alteração de engenharia": "#4B0082",
-      "Autorização de deslocamento": "#4682B4",
-      "Cofre": "#708090",
-      "Corretiva": "#FF4B4B",
-      "Corretiva POS reincidentes": "#B22222",
-      "Desinstalação": "#FF8C00",
-      "Helpdesk": "#008B8B",
-      "Inspeção técnica": "#9ACD32",
-      "Instalação": "#2E8B57",
-      "Laudo técnico": "#8B008B",
-      "Manutenção gerencial": "#5F9EA0",
-      "Orçamento": "#FFD700",
-      "Orçamento aprovado": "#32CD32",
-      "Orçamento pendente da filial detalhar motivo": "#FFA500",
-      "Orçamento pendente de aprovação do cliente": "#DAA520",
-      "Orçamento reprovado": "#8B0000",
-      "Preventiva": "#007BFF",
-      "Preventiva gerencial": "#1E90FF",
-      "Reinstalação": "#20B2AA",
-      "Treinamento": "#9370DB",
-      "Troca de Veloh C": "#8B4513",
-      "Não Informado": "#464855"
+      "Alteração de engenharia": "#4B0082", "Autorização de deslocamento": "#4682B4",
+      "Cofre": "#708090", "Corretiva": "#FF4B4B", "Corretiva POS reincidentes": "#B22222",
+      "Desinstalação": "#FF8C00", "Helpdesk": "#008B8B", "Inspeção técnica": "#9ACD32",
+      "Instalação": "#2E8B57", "Laudo técnico": "#8B008B", "Manutenção gerencial": "#5F9EA0",
+      "Orçamento": "#FFD700", "Orçamento aprovado": "#32CD32", "Orçamento pendente da filial detalhar motivo": "#FFA500",
+      "Orçamento pendente de aprovação do cliente": "#DAA520", "Orçamento reprovado": "#8B0000",
+      "Preventiva": "#007BFF", "Preventiva gerencial": "#1E90FF", "Reinstalação": "#20B2AA",
+      "Treinamento": "#9370DB", "Troca de Veloh C": "#8B4513", "Não Informado": "#464855"
     };
 
     const CORES_DIAS = ["#007BFF", "#10B981", "#8B5CF6", "#F59E0B", "#06B6D4", "#EC4899", "#6366F1"];
-    const TEMPO_MEDIO_ATENDIMENTO_MIN = 45; 
-    const LIMITE_DIARIO_MINUTOS = 300; 
 
     /* =========================================================================
-       3. ESTADO GLOBAL
+       2. ESTADO GLOBAL
        ========================================================================= */
     let dfRaw = [];
     let dfFinal = [];
@@ -846,6 +1231,7 @@
     let markersLayer = L.layerGroup();
     let routesLayer = L.layerGroup();
     let map = null;
+    let osmTileLayer = null;
     let abaAtiva = "geral";
     let chamadoSelecionado = null;
     let marcadoresPorOS = {};
@@ -855,28 +1241,31 @@
     let pontoSaidaCoord = null;
     let rotasPorDia = [];
     let rotaPolylinesPorDia = [];
-    let rotaAbortController = null;
     let buscaDebounceTimer = null;
 
     /* =========================================================================
-       4. INICIALIZAÇÃO DO MAPA
+       3. INICIALIZAÇÃO DO MAPA & TEMA
        ========================================================================= */
     function initMap() {
       if (!map) {
         map = L.map('map', {
           zoomControl: true,
           preferCanvas: true,
-          wheelDebounceTime: 40,
-          wheelPxPerZoomLevel: 80
-        }).setView([-14.2350, -51.9253], 4); // Visão Panorâmica de todo o Brasil
+          fadeAnimation: true,
+          zoomAnimation: true,
+          wheelDebounceTime: 30,
+          wheelPxPerZoomLevel: 90
+        }).setView([-14.2350, -51.9253], 4);
 
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        osmTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
           maxZoom: 19,
-          attribution: '&copy; OpenStreetMap'
+          attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
         markersLayer.addTo(map);
         routesLayer.addTo(map);
+
+        atualizarVisualTema();
 
         map.on('click', () => {
           marcadorAbertoPorClique = null;
@@ -884,12 +1273,38 @@
       }
     }
 
+    function atualizarVisualTema() {
+      const body = document.body;
+      const btnClaro = document.getElementById('btn-tema-claro');
+      const btnEscuro = document.getElementById('btn-tema-escuro');
+      const tilePane = document.querySelector('.leaflet-tile-pane');
+
+      if (temaAppAtual === 'claro') {
+        body.classList.add('theme-light');
+        btnClaro.classList.add('active');
+        btnEscuro.classList.remove('active');
+      } else {
+        body.classList.remove('theme-light');
+        btnEscuro.classList.add('active');
+        btnClaro.classList.remove('active');
+      }
+
+      if (tilePane) {
+        if (sincronizarComMapa && temaAppAtual === 'escuro') {
+          tilePane.classList.add('map-dark-mode');
+        } else {
+          tilePane.classList.remove('map-dark-mode');
+        }
+      }
+    }
+
     /* =========================================================================
-       5. MOTOR DE RESOLUÇÃO GEOGRÁFICA NACIONAL
+       4. MOTOR GEOGRÁFICO DE ALTA PRECISÃO
        ========================================================================= */
     function normalizar(str) {
       return (str || "")
         .toString()
+        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
         .normalize("NFD")
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^a-zA-Z0-9]/g, " ")
@@ -898,7 +1313,11 @@
     }
 
     function coordenadaValidaBrasil(lat, lng) {
-      return (lat <= 6.0 && lat >= -34.5 && lng >= -74.5 && lng <= -32.0);
+      if (lat === null || lat === undefined || lng === null || lng === undefined) return false;
+      const nLat = parseFloat(lat);
+      const nLng = parseFloat(lng);
+      if (isNaN(nLat) || isNaN(nLng)) return false;
+      return (nLat <= 6.0 && nLat >= -34.5 && nLng >= -74.5 && nLng <= -32.0);
     }
 
     function extrairSiglaUFValida(textoUF, textoCidade = "") {
@@ -907,76 +1326,162 @@
       
       if (ufsValidas.includes(ufNorm)) return ufNorm;
 
-      // Tenta extrair caso o estado venha no final da cidade (ex: "Campinas / SP" ou "Campinas - SP")
       const cidNorm = normalizar(textoCidade);
       for (const uf of ufsValidas) {
         if (cidNorm.endsWith(` ${uf}`) || cidNorm.endsWith(`/${uf}`) || cidNorm.endsWith(`-${uf}`)) {
           return uf;
         }
       }
-
-      return "SP"; // Fallback neutro no centro econômico caso a coluna venha vazia
+      return "SC";
     }
 
-    function resolverCoordenadaNacional(cidade, uf, index = 0) {
+    function resolverCoordenadaCidadeEstrita(cidade, uf) {
       const cidNorm = normalizar(cidade).replace(/\s+/g, ' ');
       const siglaUF = extrairSiglaUFValida(uf, cidade);
       const chaveCompleta = `${cidNorm}-${siglaUF}`;
 
-      let baseCoord = null;
-
-      // 1. Busca no Dicionário Nacional de Cidades
       if (BASE_CIDADES_BRASIL[chaveCompleta]) {
-        baseCoord = BASE_CIDADES_BRASIL[chaveCompleta];
-      } else {
-        for (const [k, v] of Object.entries(BASE_CIDADES_BRASIL)) {
-          if (k.startsWith(cidNorm) || cidNorm.startsWith(k.split('-')[0])) {
-            baseCoord = v;
-            break;
-          }
+        return [parseFloat(BASE_CIDADES_BRASIL[chaveCompleta][0]), parseFloat(BASE_CIDADES_BRASIL[chaveCompleta][1])];
+      }
+
+      for (const [k, v] of Object.entries(BASE_CIDADES_BRASIL)) {
+        if (k.endsWith(`-${siglaUF}`)) {
+          const nomeK = k.replace(`-${siglaUF}`, '');
+          if (nomeK === cidNorm) return [parseFloat(v[0]), parseFloat(v[1])];
         }
       }
 
-      // 2. Se for um município do interior não listado, usa o centróide do respectivo estado
-      if (!baseCoord) {
-        baseCoord = CENTROIDES_ESTADOS_BR[siglaUF] || [-15.78, -47.93];
-      }
+      const pEstado = CENTROIDES_ESTADOS_BR[siglaUF] || [-27.33, -49.44];
+      return [parseFloat(pEstado[0]), parseFloat(pEstado[1])];
+    }
 
-      // 3. Aplica uma dispersão sutil em espiral para os chamados não colidirem
-      const angulo = index * 1.618 * Math.PI * 2;
-      const raioOffset = (index % 10) * 0.0035;
+    function resolverCoordenadaRapida(cidade, uf, index = 0) {
+      const baseCoord = resolverCoordenadaCidadeEstrita(cidade, uf);
+
+      const angulo = index * 2.3999;
+      const raioOffset = (index % 8) * 0.0035;
       const offsetLat = Math.sin(angulo) * raioOffset;
       const offsetLng = Math.cos(angulo) * raioOffset;
 
       return [baseCoord[0] + offsetLat, baseCoord[1] + offsetLng];
     }
 
-    /* =========================================================================
-       6. MARCADORES NO MAPA
-       ========================================================================= */
-    function obterCorPrioritaria(intervencoes) {
-      const set = new Set(intervencoes.map(i => String(i).trim()));
-      if (set.has("Corretiva")) return CORES_INTERVENCAO["Corretiva"];
-      if (set.has("Corretiva POS reincidentes")) return CORES_INTERVENCAO["Corretiva POS reincidentes"];
-      if (set.has("Preventiva")) return CORES_INTERVENCAO["Preventiva"];
-      if (set.has("Preventiva gerencial")) return CORES_INTERVENCAO["Preventiva gerencial"];
+    const esperar = ms => new Promise(resolve => setTimeout(resolve, ms));
 
-      const PRIORITY_ORC = [
-        "Orçamento aprovado", "Orçamento pendente de aprovação do cliente",
-        "Orçamento pendente da filial detalhar motivo", "Orçamento reprovado", "Orçamento"
-      ];
-      for (const key of PRIORITY_ORC) {
-        if (set.has(key)) return CORES_INTERVENCAO[key] || "#FFD700";
+    function extrairRuaENumero(enderecoBruto) {
+      if (!enderecoBruto) return { rua: "", numero: "" };
+      let txt = String(enderecoBruto).trim();
+      
+      txt = txt.replace(/\(.*?\)/g, ' ');
+      txt = txt.replace(/\b(sala|sl|bloco|bl|apto|ap|andar|fundos|frente|loja|casa|galpao|km|lote|quadra)\b.*$/i, '');
+      txt = txt.replace(/[;\t]/g, ' ').replace(/\s+/g, ' ').trim();
+
+      const matchNum = txt.match(/^(.*?)(?:,\s*|\s+n[ºo]?\s*|\s+)(\d+)\b/i);
+      if (matchNum) {
+        return { rua: matchNum[1].trim(), numero: matchNum[2].trim() };
       }
 
-      if (set.has("Instalação")) return CORES_INTERVENCAO["Instalação"];
-      if (set.has("Reinstalação")) return CORES_INTERVENCAO["Reinstalação"];
+      return { rua: txt, numero: "" };
+    }
 
-      const first = Array.from(set)[0];
-      return CORES_INTERVENCAO[first] || "#FF4B4B";
+    async function resolverCoordenadaDetalhada(item, index) {
+      const ruaBruta = (item.Rua || item.Endereco || "").trim();
+      const cidade = (item.Cidade || "").trim();
+      const uf = extrairSiglaUFValida(item.SiglaUF, cidade);
+
+      const pontoBaseCidade = resolverCoordenadaCidadeEstrita(cidade, uf);
+
+      if (!ruaBruta || ruaBruta.length < 4) {
+        return { pos: resolverCoordenadaRapida(cidade, uf, index), tipo: 'cidade' };
+      }
+
+      const { rua, numero } = extrairRuaENumero(ruaBruta);
+      const cacheMemKey = `GEO_DETALHE_REAL_${rua}_${numero}_${cidade}_${uf}`.toUpperCase();
+
+      try {
+        const cacheLocal = JSON.parse(localStorage.getItem('geocodificacao_cache') || '{}');
+        if (cacheLocal[cacheMemKey] && cacheLocal[cacheMemKey].tipo === 'rua') {
+          return { pos: [parseFloat(cacheLocal[cacheMemKey].lat), parseFloat(cacheLocal[cacheMemKey].lng)], tipo: 'rua' };
+        }
+      } catch (e) {}
+
+      // 1. Nominatim Oficial (OpenStreetMap)
+      try {
+        let queryOsm = numero ? `${rua}, ${numero}, ${cidade}, ${uf}, Brasil` : `${rua}, ${cidade}, ${uf}, Brasil`;
+        let urlOsm = `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(queryOsm)}&countrycodes=br&limit=1`;
+        
+        let respOsm = await fetch(urlOsm, { headers: { 'User-Agent': 'MyMapsBR-FieldServiceLogistics/1.0' } });
+        if (respOsm.ok) {
+          let dataOsm = await respOsm.json();
+          if (dataOsm && dataOsm.length > 0) {
+            const fLat = parseFloat(dataOsm[0].lat);
+            const fLng = parseFloat(dataOsm[0].lon);
+            if (coordenadaValidaBrasil(fLat, fLng)) {
+              if (Math.abs(fLat - pontoBaseCidade[0]) < 0.45 && Math.abs(fLng - pontoBaseCidade[1]) < 0.45) {
+                salvarNoCache(cacheMemKey, fLat, fLng, 'rua');
+                return { pos: [fLat, fLng], tipo: 'rua' };
+              }
+            }
+          }
+        }
+      } catch (e) {}
+
+      await esperar(180);
+
+      // 2. Redundância no Photon com Bounding Box
+      try {
+        const delta = 0.20;
+        const bboxPhoton = `${(pontoBaseCidade[1] - delta).toFixed(4)},${(pontoBaseCidade[0] - delta).toFixed(4)},${(pontoBaseCidade[1] + delta).toFixed(4)},${(pontoBaseCidade[0] + delta).toFixed(4)}`;
+        const queryPhoton = `${rua}, ${cidade}`;
+        const urlPhoton = `https://photon.komoot.io/api/?q=${encodeURIComponent(queryPhoton)}&limit=1&bbox=${bboxPhoton}`;
+        
+        const respPhoton = await fetch(urlPhoton);
+        if (respPhoton.ok) {
+          const jsonPhoton = await respPhoton.json();
+          if (jsonPhoton.features && jsonPhoton.features.length > 0) {
+            const [lng, lat] = jsonPhoton.features[0].geometry.coordinates;
+            const fLat = parseFloat(lat);
+            const fLng = parseFloat(lng);
+            if (coordenadaValidaBrasil(fLat, fLng)) {
+              salvarNoCache(cacheMemKey, fLat, fLng, 'rua');
+              return { pos: [fLat, fLng], tipo: 'rua' };
+            }
+          }
+        }
+      } catch (e) {}
+
+      return { pos: resolverCoordenadaRapida(cidade, uf, index), tipo: 'cidade' };
+    }
+
+    function salvarNoCache(chave, lat, lng, tipo) {
+      try {
+        const cacheLocal = JSON.parse(localStorage.getItem('geocodificacao_cache') || '{}');
+        cacheLocal[chave] = { lat: parseFloat(lat), lng: parseFloat(lng), tipo };
+        localStorage.setItem('geocodificacao_cache', JSON.stringify(cacheLocal));
+      } catch (e) {}
+    }
+
+    /* =========================================================================
+       5. MARCADORES NO MAPA
+       ========================================================================= */
+    function obterCorPrioritaria(listaIntervencoes) {
+      const contagem = {};
+      for (const interv of listaIntervencoes) {
+        contagem[interv] = (contagem[interv] || 0) + 1;
+      }
+      let tipoPrioritario = "Não Informado";
+      let maiorContagem = -1;
+      for (const interv of listaIntervencoes) {
+        if (contagem[interv] > maiorContagem) {
+          maiorContagem = contagem[interv];
+          tipoPrioritario = interv;
+        }
+      }
+      return CORES_INTERVENCAO[tipoPrioritario] || CORES_INTERVENCAO["Não Informado"];
     }
 
     function renderizarMarcadores(dados, ajustarZoom = false) {
+      if (!map) initMap();
       markersLayer.clearLayers();
       marcadoresPorOS = {};
       marcadorAbertoPorClique = null;
@@ -985,8 +1490,12 @@
       const grupos = {};
       for (let i = 0; i < dados.length; i++) {
         const item = dados[i];
-        if (!item.pos || !coordenadaValidaBrasil(item.pos[0], item.pos[1])) continue;
-        const key = `${item.pos[0].toFixed(3)},${item.pos[1].toFixed(3)}`;
+        if (!item.pos || !Array.isArray(item.pos)) continue;
+        const lat = parseFloat(item.pos[0]);
+        const lng = parseFloat(item.pos[1]);
+        if (!coordenadaValidaBrasil(lat, lng)) continue;
+
+        const key = `${lat.toFixed(4)},${lng.toFixed(4)}`;
         if (!grupos[key]) grupos[key] = [];
         grupos[key].push(item);
       }
@@ -995,7 +1504,8 @@
 
       Object.values(grupos).forEach(grupo => {
         const primeiro = grupo[0];
-        const [lat, lng] = primeiro.pos;
+        const lat = parseFloat(primeiro.pos[0]);
+        const lng = parseFloat(primeiro.pos[1]);
         bounds.push([lat, lng]);
 
         const total = grupo.length;
@@ -1013,20 +1523,25 @@
           iconAnchor: [raio, raio]
         });
 
-        let htmlPopup = `<div style="font-family: Arial, sans-serif; min-width: 200px;">
-          <b style="color:#FF4B4B;">📍 ${primeiro.Cidade} / ${primeiro.SiglaUF}</b><br>
-          <small style="color:#666;">${primeiro.Endereco}</small><hr style="margin:6px 0; border:0; border-top:1px solid #ddd;">`;
+        let htmlPopup = `<div style="font-family: Arial, sans-serif; min-width: 230px;">
+          <b style="color:#FF4B4B; font-size:13px;">🏢 ${primeiro.LocalAtendimento || primeiro.Cidade}</b><br>
+          <span style="font-size:11px; color:var(--text-muted);">📍 ${primeiro.EnderecoCompleto}</span><hr style="margin:6px 0; border:0; border-top:1px solid var(--border-light);">`;
 
         for (let j = 0; j < grupo.length; j++) {
           const ch = grupo[j];
-          htmlPopup += `<b>Intervenção:</b> ${ch.Intervencao}<br><b>Cliente:</b> ${ch.Cliente}<br><b>Nº Chamado:</b> ${ch.CodOS}<br>`;
+          const badgePrecisao = ch.precisao === 'rua' 
+            ? '<span style="color:#10B981; font-size:10px; font-weight:bold;">🎯 Nível de Rua (Exato)</span>' 
+            : '<span style="color:#F59E0B; font-size:10px; font-weight:bold;">📍 Nível de Cidade (Centro)</span>';
+
+          htmlPopup += `<b>Intervenção:</b> ${ch.Intervencao}<br><b>Cliente:</b> ${ch.Cliente}<br><b>Região:</b> ${ch.Regiao}<br><b>Nº Chamado:</b> ${ch.CodOS}<br>`;
           if (ch.SLA && !["S/N", "NAN"].includes(String(ch.SLA).toUpperCase())) {
-            htmlPopup += `<b>Limite Atendimento:</b> ${ch.SLA}<br>`;
+            htmlPopup += `<b>Limite Atendimento (SLA):</b> ${ch.SLA}<br>`;
           }
-          if (j < grupo.length - 1) htmlPopup += `<hr style="margin:4px 0; border:0; border-top:1px dashed #eee;">`;
+          htmlPopup += `<b>Precisão:</b> ${badgePrecisao}<br>`;
+          if (j < grupo.length - 1) htmlPopup += `<hr style="margin:4px 0; border:0; border-top:1px dashed var(--border-light);">`;
         }
 
-        htmlPopup += `<div style="margin-top:6px; font-size:11px; font-weight:bold; color:#333;">Total de chamados: ${total}</div></div>`;
+        htmlPopup += `<div style="margin-top:6px; font-size:11px; font-weight:bold; color:var(--text-main);">Total de chamados: ${total}</div></div>`;
 
         const marker = L.marker([lat, lng], { icon: customIcon });
         marker.bindPopup(htmlPopup, { autoClose: false, closeOnClick: false });
@@ -1042,7 +1557,7 @@
 
         marker.on('click', () => {
           marcadorAbertoPorClique = marker;
-          map.setView([lat, lng], 15, { animate: true, duration: 0.35 });
+          map.setView([lat, lng], 16, { animate: true, duration: 0.35 });
           marker.openPopup();
 
           chamadoSelecionado = primeiro.CodOS;
@@ -1063,13 +1578,15 @@
         markersLayer.addLayer(marker);
       });
 
-      if (ajustarZoom && bounds.length > 0 && routesLayer.getLayers().length === 0) {
-        map.fitBounds(bounds, { padding: [40, 40] });
+      if (bounds.length > 0) {
+        if (ajustarZoom && routesLayer.getLayers().length === 0) {
+          map.fitBounds(bounds, { padding: [40, 40] });
+        }
       }
     }
 
     /* =========================================================================
-       7. PROCESSAMENTO DA PLANILHA (BRASIL COMPLETO)
+       6. LEITURA E PROCESSAMENTO (UNIFICADO + SLA DE CHAMADOS)
        ========================================================================= */
     function mapearColuna(colunas, alvos) {
       const alvosNorm = alvos.map(normalizar);
@@ -1078,9 +1595,10 @@
         if (alvosNorm.includes(colNorm)) return col;
       }
       for (const col of colunas) {
-        const colNorm = normalizar(col);
+        const colNorm = normalizar(col).replace(/\s+/g, '');
         for (const alvo of alvosNorm) {
-          if (colNorm.includes(alvo) || alvo.includes(colNorm)) return col;
+          const alvoSemEspaco = alvo.replace(/\s+/g, '');
+          if (colNorm.includes(alvoSemEspaco) || alvoSemEspaco.includes(colNorm)) return col;
         }
       }
       return null;
@@ -1101,11 +1619,53 @@
       const data = await file.arrayBuffer();
       const workbook = XLSX.read(data, { type: 'array', cellDates: true });
 
-      let targetSheet = workbook.SheetNames[0];
-      for (const prioridade of ["chamados", "unificado", "ordem_servico", "atendimentos", "rats"]) {
+      // 1. MAPEIA PRIMEIRO A TABELA 'CHAMADOS' PARA EXTRAIR A COLUNA 'LimiteAtendimento'
+      const mapaSlaChamados = new Map();
+      let sheetChamadosName = workbook.SheetNames.find(s => normalizar(s).includes("CHAMADOS"));
+      
+      if (sheetChamadosName) {
+        const sheetCh = workbook.Sheets[sheetChamadosName];
+        const rawRowsCh = XLSX.utils.sheet_to_json(sheetCh, { header: 1, defval: "" });
+
+        if (rawRowsCh.length > 0) {
+          let headerIdxCh = 0;
+          let colunasCh = [];
+          let cChamadoCh = null;
+          let cLimiteCh = null;
+
+          for (let r = 0; r < Math.min(rawRowsCh.length, 15); r++) {
+            const linha = (rawRowsCh[r] || []).map(cell => String(cell || "").trim());
+            const tChamado = mapearColuna(linha, ["Chamado", "CodOS", "NumOS", "OrdemServico", "OS"]);
+            const tLimite = mapearColuna(linha, ["LimiteAtendimento", "Limite Atendimento", "LimiteAtend", "DataLimite", "SLA", "Prazo"]);
+            if (tChamado && tLimite) {
+              headerIdxCh = r;
+              colunasCh = linha;
+              cChamadoCh = tChamado;
+              cLimiteCh = tLimite;
+              break;
+            }
+          }
+
+          if (cChamadoCh && cLimiteCh) {
+            const jsonRowsCh = XLSX.utils.sheet_to_json(sheetCh, { range: headerIdxCh, defval: "", raw: false });
+            jsonRowsCh.forEach(row => {
+              const osId = String(row[cChamadoCh] || "").split('.')[0].trim();
+              const slaRaw = row[cLimiteCh];
+              if (osId && slaRaw) {
+                mapaSlaChamados.set(osId, formatarValorSLA(slaRaw));
+              }
+            });
+          }
+        }
+      }
+
+      // 2. FORÇAR A LEITURA PRINCIPAL NA ABA 'UNIFICADO'
+      let targetSheet = null;
+      for (const prioridade of ["unificado", "ordem_servico", "chamados", "atendimentos", "rats"]) {
         const found = workbook.SheetNames.find(s => normalizar(s).includes(normalizar(prioridade)));
         if (found) { targetSheet = found; break; }
       }
+      if (!targetSheet) targetSheet = workbook.SheetNames[0];
 
       const sheet = workbook.Sheets[targetSheet];
       const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
@@ -1117,44 +1677,56 @@
 
       let headerRowIndex = 0;
       let colunas = [];
-      let cOS = null, cCid = null, cUF = null, cRua = null;
+      let cOS = null, cRegiao = null, cCliente = null, cLocal = null;
+      let cEndereco = null, cBairro = null, cCidade = null, cUF = null;
 
-      const alvosOS = ["CodOS", "Chamado", "ID", "Ticket", "OS", "NumeroOS", "OrdemServico", "NroOS"];
-      const alvosCid = ["Cidade", "Municipio", "Cid", "CidadeCliente", "Mun", "DescricaoCidade"];
+      const alvosOS = ["CodOS", "NumOS", "OrdemServico", "Chamado", "ID", "Ticket", "OS", "NumeroOS"];
+      const alvosRegiao = ["Regiao", "Região", "Distrito", "Area", "Filial"];
+      const alvosCliente = ["Cliente", "NomeCliente", "RazaoSocial", "Aba Cliente", "Empresa", "Fantasia"];
+      const alvosLocal = ["LocalAtendimento", "NomeLocal", "Local", "DescricaoLocal"];
+      const alvosEndereco = ["Endereco", "Endereço", "Logradouro", "Rua", "End", "EnderecoCliente"];
+      const alvosBairro = ["Bairro", "BairroCliente"];
+      const alvosCidade = ["Cidade", "Municipio", "Cid", "CidadeCliente", "Mun", "DescricaoCidade"];
       const alvosUF = ["SiglaUF", "UF", "Estado", "UFCliente", "EstadoCliente"];
-      const alvosRua = ["Endereco", "Endereço", "Logradouro", "Rua", "End", "EnderecoCliente", "LogradouroCliente"];
 
       for (let r = 0; r < Math.min(rawRows.length, 15); r++) {
         const linha = (rawRows[r] || []).map(cell => String(cell || "").trim());
         const tOS = mapearColuna(linha, alvosOS);
-        const tCid = mapearColuna(linha, alvosCid);
-        const tUF = mapearColuna(linha, alvosUF);
-        const tRua = mapearColuna(linha, alvosRua);
+        const tCid = mapearColuna(linha, alvosCidade);
+        const tEnd = mapearColuna(linha, alvosEndereco);
 
-        if (tOS && tCid && tRua) {
+        if (tOS && (tCid || tEnd)) {
           headerRowIndex = r;
           colunas = linha;
           cOS = tOS;
-          cCid = tCid;
-          cUF = tUF;
-          cRua = tRua;
+          cCidade = tCid;
+          cEndereco = tEnd;
+          cRegiao = mapearColuna(linha, alvosRegiao);
+          cCliente = mapearColuna(linha, alvosCliente);
+          cLocal = mapearColuna(linha, alvosLocal);
+          cBairro = mapearColuna(linha, alvosBairro);
+          cUF = mapearColuna(linha, alvosUF);
           break;
         }
       }
 
-      if (!cOS || !cCid || !cRua) {
+      if (!cOS) {
         const jsonDefault = XLSX.utils.sheet_to_json(sheet, { defval: "", raw: false });
         if (jsonDefault.length > 0) {
           colunas = Object.keys(jsonDefault[0]);
           cOS = mapearColuna(colunas, alvosOS);
-          cCid = mapearColuna(colunas, alvosCid);
+          cCidade = mapearColuna(colunas, alvosCidade);
+          cEndereco = mapearColuna(colunas, alvosEndereco);
+          cRegiao = mapearColuna(colunas, alvosRegiao);
+          cCliente = mapearColuna(colunas, alvosCliente);
+          cLocal = mapearColuna(colunas, alvosLocal);
+          cBairro = mapearColuna(colunas, alvosBairro);
           cUF = mapearColuna(colunas, alvosUF);
-          cRua = mapearColuna(colunas, alvosRua);
         }
       }
 
-      if (!cOS || !cCid || !cRua) {
-        alert(`❌ Colunas obrigatórias não encontradas na planilha.`);
+      if (!cOS) {
+        alert(`❌ Não foi possível encontrar a coluna de Código de OS (CodOS) na tabela.`);
         return;
       }
 
@@ -1164,10 +1736,8 @@
         raw: false
       });
 
-      const cInterv = mapearColuna(colunas, ["Intervencao", "Intervenção", "Tipo", "Servico"]);
-      const cClie = mapearColuna(colunas, ["Cliente", "NomeCliente", "RazaoSocial", "Aba Cliente", "Empresa"]);
-      const cReg = mapearColuna(colunas, ["Regiao", "Região", "Distrito", "Area", "Filial", "UF", "Estado"]);
-      const cSla = mapearColuna(colunas, ["LimiteAtendimento", "Limite Atendimento", "LimiteAtend", "DataLimite", "SLA", "Prazo"]);
+      const cInterv = mapearColuna(colunas, ["Intervencao", "Intervenção", "Tipo", "Servico", "DescricaoIntervencao", "TipoServico"]);
+      const cSlaUnificado = mapearColuna(colunas, ["LimiteAtendimento", "Limite Atendimento", "SLA", "Prazo"]);
 
       const vistos = new Set();
       dfRaw = [];
@@ -1179,41 +1749,134 @@
         if (!codOS || vistos.has(codOS)) continue;
         vistos.add(codOS);
 
-        const cidVal = String(row[cCid] || "").trim();
+        const ruaPura = cEndereco && row[cEndereco] ? String(row[cEndereco]).trim() : "";
+        const bairroPuro = cBairro && row[cBairro] ? String(row[cBairro]).trim() : "";
+        const cidVal = cCidade && row[cCidade] ? String(row[cCidade]).trim() : "";
         const rawUF = cUF && row[cUF] ? String(row[cUF]).trim() : "";
         const ufVal = extrairSiglaUFValida(rawUF, cidVal);
+        const localNome = cLocal && row[cLocal] ? String(row[cLocal]).trim() : localNomeFallback(cidVal, codOS);
+        const regiaoVal = cRegiao && row[cRegiao] ? String(row[cRegiao]).trim() : ufVal;
+        const clienteVal = cCliente && row[cCliente] ? String(row[cCliente]).trim() : "Não Informado";
 
-        // Resolve coordenada para qualquer estado do Brasil
-        const posNacional = resolverCoordenadaNacional(cidVal, ufVal, i);
+        // SLA puxado da aba Chamados (coluna LimiteAtendimento) com fallback na Unificado
+        let slaFinal = "";
+        if (mapaSlaChamados.has(codOS)) {
+          slaFinal = mapaSlaChamados.get(codOS);
+        } else if (cSlaUnificado && row[cSlaUnificado]) {
+          slaFinal = formatarValorSLA(row[cSlaUnificado]);
+        }
+
+        // Junção dinâmica solicitada: Endereço, Bairro, Cidade - UF
+        const partesEndereco = [];
+        if (ruaPura && !['nan', 'null', 'undefined'].includes(ruaPura.toLowerCase())) {
+          partesEndereco.push(ruaPura);
+        }
+        if (bairroPuro && !['nan', 'null', 'undefined', 'centro'].includes(bairroPuro.toLowerCase())) {
+          partesEndereco.push(bairroPuro);
+        }
+        if (cidVal) {
+          partesEndereco.push(ufVal ? `${cidVal} - ${ufVal}` : cidVal);
+        }
+        const enderecoCompleto = partesEndereco.join(", ") || `${cidVal} - ${ufVal}`;
 
         const item = {
           CodOS: codOS,
           Cidade: cidVal,
           SiglaUF: ufVal,
-          Endereco: String(row[cRua] || "").trim(),
+          Rua: ruaPura,
+          Bairro: bairroPuro,
+          Endereco: ruaPura || enderecoCompleto,
+          EnderecoCompleto: enderecoCompleto,
+          LocalAtendimento: localNome,
           Intervencao: cInterv && row[cInterv] ? String(row[cInterv]).trim() : "Não Informado",
-          Cliente: cClie && row[cClie] ? String(row[cClie]).trim() : "Não Informado",
-          Regiao: cReg && row[cReg] ? String(row[cReg]).trim() : ufVal,
-          SLA: cSla && row[cSla] ? formatarValorSLA(row[cSla]) : "",
-          pos: posNacional
+          Cliente: clienteVal,
+          Regiao: regiaoVal,
+          SLA: slaFinal,
+          pos: null,
+          precisao: 'indefinida'
         };
 
         dfRaw.push(item);
         chamadosMap.set(codOS, item);
       }
 
-      document.getElementById('empty-state').style.display = 'none';
-      document.getElementById('btn-remover-arquivo').style.display = 'inline-flex';
+      function localNomeFallback(cidade, os) {
+        return cidade ? `${cidade} (OS ${os})` : `OS ${os}`;
+      }
+
       initMap();
 
-      dfFinal = [...dfRaw];
-      popularFiltros(dfFinal);
-      aplicarFiltros(true);
+      if (modoPesquisa === "detalhada") {
+        await executarFluxoGeocodificacaoDetalhada();
+      } else {
+        for (let i = 0; i < dfRaw.length; i++) {
+          dfRaw[i].pos = resolverCoordenadaRapida(dfRaw[i].Cidade, dfRaw[i].SiglaUF, i);
+          dfRaw[i].precisao = 'cidade';
+        }
+        concluirRenderizacaoPosGeocodificacao();
+      }
+    }
 
+    async function executarFluxoGeocodificacaoDetalhada() {
+      const overlay = document.getElementById('map-loading-overlay');
+      const fill = document.getElementById('overlay-progress-fill');
+      const textProg = document.getElementById('overlay-progress-text');
+      const boxSide = document.getElementById('progress-box');
+      const fillSide = document.getElementById('progress-fill');
+      const textCountSide = document.getElementById('progress-count');
+
+      overlay.style.display = 'flex';
+      boxSide.style.display = 'flex';
+
+      const total = dfRaw.length;
+      const lote = 2;
+
+      for (let i = 0; i < total; i += lote) {
+        const slice = dfRaw.slice(i, i + lote);
+        await Promise.all(slice.map(async (item, idx) => {
+          const resultado = await resolverCoordenadaDetalhada(item, i + idx);
+          item.pos = resultado.pos;
+          item.precisao = resultado.tipo;
+        }));
+
+        const processados = Math.min(i + lote, total);
+        const perc = Math.round((processados / total) * 100);
+
+        fill.style.width = `${perc}%`;
+        textProg.textContent = `${processados} de ${total} chamados (${perc}%)`;
+
+        fillSide.style.width = `${perc}%`;
+        textCountSide.textContent = `${processados}/${total} (${perc}%)`;
+
+        await esperar(140);
+      }
+
+      overlay.style.display = 'none';
+      setTimeout(() => { boxSide.style.display = 'none'; }, 1500);
+
+      concluirRenderizacaoPosGeocodificacao();
+    }
+
+    function concluirRenderizacaoPosGeocodificacao() {
+      document.getElementById('empty-state').style.display = 'none';
+      document.getElementById('btn-remover-arquivo').style.display = 'inline-flex';
       document.getElementById('filtros-container').style.display = 'flex';
       document.getElementById('container-lista').style.display = 'flex';
       document.getElementById('tabs-bar').style.display = 'flex';
       document.getElementById('legenda-dinamica').style.display = 'flex';
+
+      dfFinal = [...dfRaw];
+      popularFiltros(dfFinal);
+
+      if (map) {
+        map.invalidateSize();
+      }
+
+      aplicarFiltros(true);
+
+      setTimeout(() => {
+        if (map) map.invalidateSize();
+      }, 150);
     }
 
     function removerPlanilhaAtual() {
@@ -1233,8 +1896,10 @@
 
       document.getElementById('file-input').value = '';
       document.getElementById('upload-label').textContent = '200MB per file • XLSX';
-      document.getElementById('upload-label').style.color = '#7b7e87';
+      document.getElementById('upload-label').style.color = 'var(--text-muted)';
       document.getElementById('btn-remover-arquivo').style.display = 'none';
+      document.getElementById('progress-box').style.display = 'none';
+      document.getElementById('map-loading-overlay').style.display = 'none';
 
       document.getElementById('filtros-container').style.display = 'none';
       document.getElementById('container-lista').style.display = 'none';
@@ -1251,7 +1916,7 @@
     }
 
     /* =========================================================================
-       8. FILTROS E SIDEBAR
+       7. FILTROS E SIDEBAR
        ========================================================================= */
     function popularFiltros(dados) {
       const preencherSelect = (id, valores) => {
@@ -1271,7 +1936,7 @@
 
       const intervencoes = [...new Set(dados.map(d => d.Intervencao))].sort();
       const clientes = [...new Set(dados.map(d => d.Cliente))].sort();
-      const regioes = [...new Set(dados.map(d => d.Regiao || d.SiglaUF))].sort();
+      const regioes = [...new Set(dados.map(d => d.Regiao))].sort();
 
       preencherSelect('filtro-intervencao', intervencoes);
       preencherSelect('filtro-cliente', clientes);
@@ -1304,7 +1969,9 @@
         ? dados.filter(d => 
             d.CodOS.toLowerCase().includes(busca) || 
             d.Cidade.toLowerCase().includes(busca) || 
-            d.SiglaUF.toLowerCase().includes(busca)
+            d.SiglaUF.toLowerCase().includes(busca) ||
+            d.LocalAtendimento.toLowerCase().includes(busca) ||
+            d.EnderecoCompleto.toLowerCase().includes(busca)
           )
         : dados;
 
@@ -1323,13 +1990,13 @@
         const cor = CORES_INTERVENCAO[ch.Intervencao] || '#464855';
         btn.style.borderLeftColor = cor;
         const prefixo = chamadoSelecionado === ch.CodOS ? "🔷" : "🔵";
-        btn.textContent = `${prefixo} [${ch.Cidade}/${ch.SiglaUF}] OS: ${ch.CodOS}`;
+        btn.textContent = `${prefixo} [${ch.Cidade}/${ch.SiglaUF}] OS: ${ch.CodOS} - ${ch.LocalAtendimento}`;
 
         btn.addEventListener('click', () => {
           chamadoSelecionado = ch.CodOS;
           renderizarListaChamados(dfFinal);
-          if (ch.pos) {
-            map.setView(ch.pos, 15, { animate: true, duration: 0.35 });
+          if (ch.pos && Array.isArray(ch.pos)) {
+            map.setView([parseFloat(ch.pos[0]), parseFloat(ch.pos[1])], 16, { animate: true, duration: 0.35 });
             const marker = marcadoresPorOS[ch.CodOS];
             if (marker) {
               marcadorAbertoPorClique = marker;
@@ -1351,7 +2018,7 @@
       dfFinal = dfRaw.filter(d => {
         if (fInterv !== "Todos" && d.Intervencao !== fInterv) return false;
         if (fClie !== "Todos" && d.Cliente !== fClie) return false;
-        if (fReg !== "Todos" && d.Regiao !== fReg && d.SiglaUF !== fReg) return false;
+        if (fReg !== "Todos" && d.Regiao !== fReg) return false;
         return true;
       });
 
@@ -1362,7 +2029,7 @@
     }
 
     /* =========================================================================
-       9. TRAÇADO DE ROTAS E DIAS DE 5 HORAS
+       8. TRAÇADO DE ROTAS
        ========================================================================= */
     function popularMultiSelectDestinos(dados) {
       const container = document.getElementById('multiselect-list');
@@ -1372,13 +2039,13 @@
       const fragment = document.createDocumentFragment();
 
       if (dados.length === 0) {
-        container.innerHTML = '<div style="font-size:11px; color:#888; padding:6px;">Nenhum chamado disponível neste filtro.</div>';
+        container.innerHTML = '<div style="font-size:11px; color:var(--text-muted); padding:6px;">Nenhum chamado disponível neste filtro.</div>';
       } else {
         for (let i = 0; i < dados.length; i++) {
           const d = dados[i];
           const id = d.CodOS;
           const slaTxt = d.SLA ? ` (Limite: ${d.SLA})` : '';
-          const label = `[${d.Cidade}/${d.SiglaUF}] OS: ${d.CodOS} - ${d.Cliente}${slaTxt}`;
+          const label = `[${d.Cidade}/${d.SiglaUF}] OS: ${d.CodOS} - ${d.LocalAtendimento} (${d.Cliente})${slaTxt}`;
           destinosValidos.add(id);
 
           const item = document.createElement('div');
@@ -1582,7 +2249,7 @@
       return rotaFinalOrdenada;
     }
 
-    async function agruparEmDiasDe5Horas(pontoSaida, listaOrdenada) {
+    async function agruparEmDiasDeHoras(pontoSaida, listaOrdenada) {
       const dias = [];
       let diaAtual = {
         diaNum: 1,
@@ -1769,15 +2436,16 @@
 
           const slaDetalhe = item.SLA ? `<br><b>Limite Atendimento (SLA):</b> ${item.SLA}` : '';
           L.marker(item.pos, { icon: iconePinParada })
-            .bindPopup(`<b>📍 Dia ${dia.diaNum} - Parada ${pIdx + 1}:</b> [${item.Cidade}/${item.SiglaUF}]<br><b>OS:</b> ${item.CodOS}<br><b>Cliente:</b> ${item.Cliente}${slaDetalhe}`)
+            .bindPopup(`<b>📍 Dia ${dia.diaNum} - Parada ${pIdx + 1}:</b> [${item.Cidade}/${item.SiglaUF}]<br><b>Local:</b> ${item.LocalAtendimento}<br><b>OS:</b> ${item.CodOS}<br><b>Endereço:</b> ${item.EnderecoCompleto}${slaDetalhe}`)
             .addTo(routesLayer);
         });
       }
 
       const sidebarInfo = document.getElementById('sidebar-rota-info');
-      let htmlSidebar = `<b>🗺️ Planejamento em Dias (Máx 5h/dia)</b><br>🏠 <b>Saída:</b> ${saidaStr}<br>`;
-      htmlSidebar += `<div style="font-size:11px; color:#9a9ca1; margin:4px 0;">Total de ${diasCalculados.length} dia(s) necessário(s) para atendimento.</div>`;
-      htmlSidebar += `<hr style="margin:8px 0; border:0; border-top:1px solid #3e404f;">`;
+      const horasDiaFormat = (LIMITE_DIARIO_MINUTOS / 60).toString();
+      let htmlSidebar = `<b>🗺️ Planejamento em Dias (Máx ${horasDiaFormat}h/dia)</b><br>🏠 <b>Saída:</b> ${saidaStr}<br>`;
+      htmlSidebar += `<div style="font-size:11px; color:var(--text-muted); margin:4px 0;">Total de ${diasCalculados.length} dia(s) necessário(s) para atendimento.</div>`;
+      htmlSidebar += `<hr style="margin:8px 0; border:0; border-top:1px solid var(--border-light);">`;
 
       diasCalculados.forEach(dia => {
         const hTotal = Math.floor((dia.duracaoTransitoMin + (dia.paradas.length * TEMPO_MEDIO_ATENDIMENTO_MIN)) / 60);
@@ -1788,14 +2456,14 @@
           <div class="dia-card-option" data-dia="${dia.diaNum}" onclick="destacarDiaNoMapa(${dia.diaNum})">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
               <span style="font-weight:bold; color:${dia.cor}; font-size:14px;">📅 Dia ${dia.diaNum}</span>
-              <span style="font-size:11px; background:#262730; padding:2px 6px; border-radius:4px; color:#cbd5e1;">${dia.paradas.length} chamados</span>
+              <span style="font-size:11px; background:var(--bg-sidebar); padding:2px 6px; border-radius:4px; color:var(--text-main);">${dia.paradas.length} chamados</span>
             </div>
-            <div style="font-size:11px; color:#cbd5e1;">⏱️ <b>Jornada total:</b> ${durStr} (Trânsito + Atendimentos)</div>
-            <div style="font-size:11px; color:#cbd5e1;">📍 <b>Distância rodada:</b> ${dia.distanciaTotalKm.toFixed(1)} km</div>
-            <div style="margin-top:6px; font-size:11px; color:#9ca3af; border-top:1px dashed #374151; padding-top:4px;">
+            <div style="font-size:11px; color:var(--text-main);">⏱️ <b>Jornada total:</b> ${durStr} (Trânsito + Atendimentos)</div>
+            <div style="font-size:11px; color:var(--text-main);">📍 <b>Distância rodada:</b> ${dia.distanciaTotalKm.toFixed(1)} km</div>
+            <div style="margin-top:6px; font-size:11px; color:var(--text-muted); border-top:1px dashed var(--border-light); padding-top:4px;">
               ${dia.paradas.map((p, idx) => {
                 const slaInfo = p.SLA ? ` <span style="color:#FFD700;">[Limite: ${p.SLA}]</span>` : '';
-                return `<b>${idx + 1}.</b> [${p.Cidade}] OS: ${p.CodOS}${slaInfo}`;
+                return `<b>${idx + 1}.</b> [${p.Cidade}] ${p.LocalAtendimento} (OS: ${p.CodOS})${slaInfo}`;
               }).join('<br>')}
             </div>
           </div>
@@ -1803,7 +2471,7 @@
       });
 
       htmlSidebar += `
-        <button onclick="destacarDiaNoMapa('todos')" style="width:100%; margin-top:10px; background:#3b3d4a; color:#fff; border:none; padding:6px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:bold;">
+        <button onclick="destacarDiaNoMapa('todos')" style="width:100%; margin-top:10px; background:var(--bg-card); color:var(--text-main); border:1px solid var(--border-color); padding:8px; border-radius:6px; font-size:11px; cursor:pointer; font-weight:bold;">
           👁️ Ver Todos os Dias no Mapa
         </button>
       `;
@@ -1814,7 +2482,7 @@
       map.fitBounds(boundsTodasRotas, { padding: [50, 50] });
     }
 
-    async function calcularRotasDiarias5Horas() {
+    async function calcularRotasDiariasHoras() {
       const saidaStr = document.getElementById('rota-saida').value.trim();
       const btnSugerir = document.getElementById('btn-sugerir-rotas-sidebar');
       const btnCalc = document.getElementById('btn-calc-rota');
@@ -1835,11 +2503,11 @@
 
       btnSugerir.disabled = true;
       btnCalc.disabled = true;
-      btnSugerir.innerHTML = `<span>⏳ Calculando rotas de 5h...</span>`;
+      btnSugerir.innerHTML = `<span>⏳ Otimizando jornada de rotas...</span>`;
 
       try {
         const [cidS, ufS] = saidaStr.split(/[\/-]/).map(s => s.trim());
-        const pA = resolverCoordenadaNacional(cidS || saidaStr, ufS || "SP", 0);
+        const pA = resolverCoordenadaRapida(cidS || saidaStr, ufS || "SC", 0);
 
         let chamadosParaAtender = [];
         for (const codOS of destinosSelecionados) {
@@ -1855,7 +2523,7 @@
         }
 
         const chamadosOrdenados = otimizarOrdemParadasComSLA(pA, chamadosParaAtender);
-        const diasCalculados = await agruparEmDiasDe5Horas(pA, chamadosOrdenados);
+        const diasCalculados = await agruparEmDiasDeHoras(pA, chamadosOrdenados);
 
         pontoSaidaCoord = pA;
         await desenharRotasPorDias(pA, diasCalculados);
@@ -1863,18 +2531,143 @@
       } finally {
         btnSugerir.disabled = false;
         btnCalc.disabled = false;
+        const horasFormat = (LIMITE_DIARIO_MINUTOS / 60).toString();
         btnSugerir.innerHTML = `
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
             <circle cx="12" cy="12" r="10"></circle>
             <polyline points="12 6 12 12 16 14"></polyline>
           </svg>
-          <span>🧠 Rotas Diárias de 5 Horas</span>
+          <span id="label-btn-rotas">🧠 Rotas Diárias de ${horasFormat} Horas</span>
         `;
       }
     }
 
     /* =========================================================================
-       10. EVENT LISTENERS
+       9. MODAL DE AJUSTES & CONFIGURAÇÕES
+       ========================================================================= */
+    const modalSettings = document.getElementById('modal-settings');
+    const btnAbrirSettings = document.getElementById('btn-abrir-settings');
+    const btnFecharSettings = document.getElementById('btn-fechar-settings');
+    const btnSalvarSettings = document.getElementById('btn-salvar-settings');
+    const btnLimparCache = document.getElementById('btn-limpar-cache-app');
+
+    const btnTemaClaro = document.getElementById('btn-tema-claro');
+    const btnTemaEscuro = document.getElementById('btn-tema-escuro');
+    const chkSincronizarMapa = document.getElementById('chk-sincronizar-mapa');
+
+    const btnBuscaRapida = document.getElementById('btn-busca-rapida');
+    const btnBuscaDetalhada = document.getElementById('btn-busca-detalhada');
+    const descModoBusca = document.getElementById('desc-modo-busca');
+
+    btnTemaClaro.addEventListener('click', () => {
+      temaAppAtual = 'claro';
+      atualizarVisualTema();
+    });
+
+    btnTemaEscuro.addEventListener('click', () => {
+      temaAppAtual = 'escuro';
+      atualizarVisualTema();
+    });
+
+    chkSincronizarMapa.addEventListener('change', (e) => {
+      sincronizarComMapa = e.target.checked;
+      atualizarVisualTema();
+    });
+
+    function atualizarBotoesModoBusca() {
+      if (modoPesquisa === "detalhada") {
+        btnBuscaDetalhada.classList.add('active');
+        btnBuscaRapida.classList.remove('active');
+        descModoBusca.textContent = "🎯 Detalhada: Carrega o mapa SOMENTE após concluir 100% das coordenadas exatas de rua/número.";
+      } else {
+        btnBuscaRapida.classList.add('active');
+        btnBuscaDetalhada.classList.remove('active');
+        descModoBusca.textContent = "⚡ Rápida: Carregamento instantâneo via cidades e memória. Ideal para muitas OSs.";
+      }
+    }
+
+    btnBuscaRapida.addEventListener('click', () => {
+      modoPesquisa = "rapida";
+      atualizarBotoesModoBusca();
+    });
+
+    btnBuscaDetalhada.addEventListener('click', () => {
+      modoPesquisa = "detalhada";
+      atualizarBotoesModoBusca();
+    });
+
+    function carregarConfiguracoesSalvas() {
+      const horasSalvas = parseFloat(localStorage.getItem('cfg_limite_horas') || "5");
+      const tempoSalvo = parseInt(localStorage.getItem('cfg_tempo_atendimento') || "45");
+      const temaSalvo = localStorage.getItem('cfg_tema_app') || "escuro";
+      const sincMapaSalvo = localStorage.getItem('cfg_sinc_mapa') !== 'false';
+      const modoBuscaSalvo = localStorage.getItem('cfg_modo_pesquisa') || "rapida";
+
+      LIMITE_DIARIO_MINUTOS = Math.round(horasSalvas * 60);
+      TEMPO_MEDIO_ATENDIMENTO_MIN = tempoSalvo;
+      temaAppAtual = temaSalvo;
+      sincronizarComMapa = sincMapaSalvo;
+      modoPesquisa = modoBuscaSalvo;
+
+      document.getElementById('cfg-limite-horas').value = horasSalvas;
+      document.getElementById('cfg-tempo-atendimento').value = tempoSalvo;
+      chkSincronizarMapa.checked = sincronizarComMapa;
+
+      document.getElementById('label-btn-rotas').textContent = `🧠 Rotas Diárias de ${horasSalvas} Horas`;
+      atualizarVisualTema();
+      atualizarBotoesModoBusca();
+    }
+
+    btnAbrirSettings.addEventListener('click', () => {
+      modalSettings.classList.add('open');
+    });
+
+    btnFecharSettings.addEventListener('click', () => {
+      modalSettings.classList.remove('open');
+    });
+
+    modalSettings.addEventListener('click', (e) => {
+      if (e.target === modalSettings) {
+        modalSettings.classList.remove('open');
+      }
+    });
+
+    btnSalvarSettings.addEventListener('click', async () => {
+      const horas = parseFloat(document.getElementById('cfg-limite-horas').value) || 5;
+      const tempoAtend = parseInt(document.getElementById('cfg-tempo-atendimento').value) || 45;
+
+      LIMITE_DIARIO_MINUTOS = Math.round(horas * 60);
+      TEMPO_MEDIO_ATENDIMENTO_MIN = tempoAtend;
+
+      localStorage.setItem('cfg_limite_horas', horas);
+      localStorage.setItem('cfg_tempo_atendimento', tempoAtend);
+      localStorage.setItem('cfg_tema_app', temaAppAtual);
+      localStorage.setItem('cfg_sinc_mapa', sincronizarComMapa);
+      localStorage.setItem('cfg_modo_pesquisa', modoPesquisa);
+
+      document.getElementById('label-btn-rotas').textContent = `🧠 Rotas Diárias de ${horas} Horas`;
+      atualizarVisualTema();
+
+      modalSettings.classList.remove('open');
+
+      if (modoPesquisa === 'detalhada' && dfRaw.length > 0) {
+        await executarFluxoGeocodificacaoDetalhada();
+      } else {
+        alert("✅ Ajustes salvos com sucesso!");
+      }
+    });
+
+    btnLimparCache.addEventListener('click', () => {
+      if (confirm("Deseja realmente limpar todo o cache de coordenadas do navegador?")) {
+        localStorage.removeItem('geocodificacao_cache');
+        alert("🧹 Cache esvaziado com sucesso!");
+      }
+    });
+
+    carregarConfiguracoesSalvas();
+
+    /* =========================================================================
+       10. EVENT LISTENERS GERAIS
        ========================================================================= */
     document.getElementById('upload-card').addEventListener('click', (e) => {
       if (!document.getElementById('btn-remover-arquivo').contains(e.target)) {
@@ -1896,15 +2689,13 @@
       }
     });
 
-    document.getElementById('toggle-btn').addEventListener('click', () => {
+    function alternarSidebar() {
       const sidebar = document.getElementById('sidebar');
       sidebar.classList.toggle('collapsed');
-      const isCollapsed = sidebar.classList.contains('collapsed');
-      document.getElementById('toggle-icon').innerHTML = isCollapsed
-        ? '<polyline points="9 18 15 12 9 6"></polyline>'
-        : '<polyline points="15 18 9 12 15 6"></polyline>';
-      setTimeout(() => { map && map.invalidateSize(); }, 250);
-    });
+      setTimeout(() => { if (map) map.invalidateSize(); }, 260);
+    }
+
+    document.getElementById('app-title-container').addEventListener('click', alternarSidebar);
 
     document.getElementById('expander-filtros-toggle').addEventListener('click', () => {
       document.getElementById('filtros-container').classList.toggle('open');
@@ -1974,8 +2765,8 @@
       setTimeout(() => { map && map.invalidateSize(); }, 100);
     });
 
-    document.getElementById('btn-calc-rota').addEventListener('click', calcularRotasDiarias5Horas);
-    document.getElementById('btn-sugerir-rotas-sidebar').addEventListener('click', calcularRotasDiarias5Horas);
+    document.getElementById('btn-calc-rota').addEventListener('click', calcularRotasDiariasHoras);
+    document.getElementById('btn-sugerir-rotas-sidebar').addEventListener('click', calcularRotasDiariasHoras);
   </script>
 </body>
 </html>
