@@ -857,6 +857,19 @@
       perspective: 1000px;
       will-change: transform;
     }
+
+    #btn-cancelar-geocodificacao {
+      height: 20px !important;
+      min-height: 20px !important;
+      max-height: 20px !important;
+      padding: 0 10px !important;
+      line-height: 18px !important;
+      font-size: 11px !important;
+      display: inline-flex !important;
+      align-items: center !important;
+      justify-content: center !important;
+      box-sizing: border-box !important;
+    }
   </style>
 </head>
 <body>
@@ -865,7 +878,7 @@
 
   <!-- Sidebar com Logo Interativo para Compactar/Expandir -->
   <aside id="sidebar">
-    <div class="badge-version">v0.9.4</div>
+    <div class="badge-version">v0.9.5</div>
     <div class="app-title" id="app-title-container" title="Clique para recolher ou expandir o menu">
       <span class="app-logo-icon">📍</span>
       <span class="app-title-text">My Maps BR</span>
@@ -1100,7 +1113,7 @@
           </div>
           <div style="font-size: 0.75rem; text-align: center; margin-top: 4px; color: #cbd5e1;" id="overlay-progress-text">0 de 0 (0%)</div>
         </div>
-        <button class="btn-secondary" id="btn-cancelar-geocodificacao" style="margin-top: 10px; padding: 8px 20px;">Cancelar e usar coordenadas de cidade</button>
+        <button class="btn-secondary" id="btn-cancelar-geocodificacao">Cancelar e usar coordenadas de cidade</button>
       </div>
     </div>
 
@@ -1115,7 +1128,7 @@
   <!-- Script da Aplicação Totalmente Integrado e Corrigido -->
   <script>
     /* =========================================================================
-      MY MAPS BR - SCRIPT PRINCIPAL OTIMIZADO (v0.9.4)
+      MY MAPS BR - SCRIPT PRINCIPAL OTIMIZADO (v0.9.5)
       ========================================================================= */
 
     let TEMPO_MEDIO_ATENDIMENTO_MIN = 45; 
