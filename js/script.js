@@ -110,6 +110,7 @@ function initMap() {
       keepBuffer: 12,
       updateWhenZooming: false,
       updateWhenIdle: true,
+      referrerPolicy: 'origin', // Adiciona a diretiva de referência exigida pelo OSM
       attribution: '&copy; OpenStreetMap contributors'
     }).addTo(map);
 
