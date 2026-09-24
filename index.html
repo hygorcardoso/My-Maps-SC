@@ -200,11 +200,20 @@
 
     .expander-title { font-size: 0.85rem; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 0.4rem; }
     .expander-icon { width: 14px; height: 14px; color: var(--text-muted); transition: transform 0.2s ease; flex-shrink: 0; }
-    .expander-container.open .expander-icon { transform: rotate(180deg); }
+    .expander-container.open .expander-icon { transform: rotate(180deg);  }
 
-    .expander-body { display: none; flex-direction: column; gap: 0.75rem; padding: 0 0.75rem 0.75rem 0.75rem; border-top: 1px solid var(--border-light); background: var(--bg-card); }
-    .expander-body label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px; display: block; }
+    .expander-body {
+      display: none;
+      flex-direction: column;
+      gap: 0.75rem;
+      padding: 0 0.75rem 0.75rem 0.75rem;
+      border-top: 1px solid var(--border-light);
+      background: var(--bg-card);
+    }
 
+    .expander-container.open .expander-body {
+      display: flex;
+    }
     select, input[type="text"], input[type="number"], input[type="password"] {
       width: 100%;
       background-color: var(--bg-input);
@@ -939,18 +948,23 @@
       overlay.style.display = 'none';
       renderizarMarcadores(dfFinal, true);
     }
-
     function mapearColuna(colunas, alvos) {
-      const alvosNorm = alvos.map(normalizar);
-      for (const alvo of alvosNorm) {
-        for (const col of colunas) { if (normalizar(col) === alvo) return col; }
+      const colunasNorm = colunas.map(c => ({ original: c, norm: normalizar(c) }));
+      
+      // 1. Tenta correspondência exata normalizada
+      for (const alvo of alvos) {
+        const alvoNorm = normalizar(alvo);
+        const achou = colunasNorm.find(c => c.norm === alvoNorm);
+        if (achou) return achou.original;
       }
-      for (const alvo of alvosNorm) {
-        const alvoSemEspaco = alvo.replace(/\s+/g, '');
-        for (const col of colunas) {
-          if (normalizar(col).replace(/\s+/g, '') === alvoSemEspaco) return col;
-        }
+
+      // 2. Tenta correspondência parcial (contém a palavra-chave)
+      for (const alvo of alvos) {
+        const alvoNorm = normalizar(alvo);
+        const achou = colunasNorm.find(c => c.norm.includes(alvoNorm) || alvoNorm.includes(c.norm));
+        if (achou) return achou.original;
       }
+
       return null;
     }
 
@@ -1064,7 +1078,11 @@
 
     async function concluirRenderizacaoPosGeocodificacao() {
       document.getElementById('btn-remover-arquivo').style.display = 'inline-flex';
-      document.getElementById('filtros-container').style.display = 'flex';
+      
+      const filtrosContainer = document.getElementById('filtros-container');
+      filtrosContainer.style.display = 'flex';
+      filtrosContainer.classList.add('open'); // Força a expansão automática dos filtros
+
       document.getElementById('container-lista').style.display = 'flex';
       document.getElementById('tabs-bar').style.display = 'flex';
       document.getElementById('legenda-dinamica').style.display = 'flex';
