@@ -454,7 +454,7 @@
   <input type="file" id="file-input" accept=".xlsx, .xls" style="display: none;" />
 
   <aside id="sidebar">
-    <div class="badge-version">v0.9.8 (Multi-APIs & Cache)</div>
+    <div class="badge-version">v0.9.9 (Multi-APIs & Cache)</div>
     <div class="app-title" id="app-title-container" title="Clique para recolher ou expandir o menu">
       <span class="app-logo-icon">📍</span>
       <span class="app-title-text">My Maps BR</span>
@@ -1325,6 +1325,48 @@
       btnText.textContent = count === 0 ? "🏁 Selecionar Destinos (0)" : `🏁 ${count} chamado(s) selecionado(s)`;
     }
 
+    function atualizarFiltroRegiaoPorEstado() {
+      const selectEstado = document.getElementById('filtro-estado');
+      const selectRegiao = document.getElementById('filtro-regiao');
+
+      if (!selectEstado || !selectRegiao) return;
+
+      const estadoSelecionado = selectEstado.value;
+      const regiaoAtual = selectRegiao.value;
+
+      // Guarda apenas os chamados compatíveis com o estado selecionado
+      const chamadosFiltradosEstado = estadoSelecionado === 'Todos'
+        ? dfRaw
+        : dfRaw.filter(item => {
+            const uf = extrairSiglaUFValida(item.SiglaUF, item.Cidade);
+            return uf === estadoSelecionado;
+          });
+
+      // Obtém as regiões existentes nesse estado
+      const regioes = [...new Set(
+        chamadosFiltradosEstado
+          .map(item => (item.Regiao || '').toString().trim())
+          .filter(Boolean)
+      )].sort((a, b) => a.localeCompare(b, 'pt-BR'));
+
+      // Reconstrói o select
+      selectRegiao.innerHTML = '<option value="Todos">Todos</option>';
+
+      regioes.forEach(regiao => {
+        const option = document.createElement('option');
+        option.value = regiao;
+        option.textContent = regiao;
+        selectRegiao.appendChild(option);
+      });
+
+      // Mantém a região anteriormente escolhida somente se ela ainda existir
+      if (regiaoAtual !== 'Todos' && regioes.includes(regiaoAtual)) {
+        selectRegiao.value = regiaoAtual;
+      } else {
+        selectRegiao.value = 'Todos';
+      }
+    }
+
     async function calcularRotasDiariasHoras() {
       const saidaStr = document.getElementById('rota-saida').value.trim();
       if (!saidaStr) { alert("❌ Informe a cidade de saída do técnico."); return; }
@@ -1497,6 +1539,10 @@
 
     document.getElementById('btn-calc-rota').addEventListener('click', calcularRotasDiariasHoras);
     document.getElementById('btn-sugerir-rotas-sidebar').addEventListener('click', calcularRotasDiariasHoras);
+
+    document.getElementById('filtro-estado').addEventListener('change', () => {
+      atualizarFiltroRegiaoPorEstado();
+    });
 
     initMap();
   </script>
