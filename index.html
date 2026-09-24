@@ -870,6 +870,29 @@
       justify-content: center !important;
       box-sizing: border-box !important;
     }
+
+    /* Estilo da notificação temporária (Toast) */
+    .toast-aviso {
+      position: fixed;
+      bottom: 25px;
+      right: 25px;
+      background-color: #10B981;
+      color: #ffffff;
+      padding: 12px 20px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
+      z-index: 4000;
+      opacity: 0;
+      transform: translateY(20px);
+      transition: opacity 0.3s ease, transform 0.3s ease;
+      pointer-events: none;
+    }
+    .toast-aviso.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
   </style>
 </head>
 <body>
@@ -1064,6 +1087,8 @@
             🗑️ Limpar Todo o Cache de Coordenadas
           </button>
         </div>
+        
+        <div id="toast-notificacao" class="toast-aviso">✅ Ajustes salvos com sucesso!</div>
 
         <button class="btn-primary" id="btn-salvar-settings" style="margin-top: 0.5rem;">
           💾 Salvar Ajustes
@@ -1219,17 +1244,28 @@
           zoomDelta: 1
         }).setView([-14.2350, -51.9253], 4);
 
+        // Controle manual e suave da roda do mouse direcionado ao cursor do mouse
         let ultimaRolleada = 0;
         map.getContainer().addEventListener('wheel', (e) => {
           e.preventDefault();
           const agora = Date.now();
-          if (agora - ultimaRolleada < 180) return;
+          if (agora - ultimaRolleada < 180) return; // Trava anti-disparo rápido (180ms)
           ultimaRolleada = agora;
 
+          // Obtém a posição exata do mouse em relação ao container do mapa
+          const containerRect = map.getContainer().getBoundingClientRect();
+          const mouseX = e.clientX - containerRect.left;
+          const mouseY = e.clientY - containerRect.top;
+
+          // Converte a posição do pixel do mouse para coordenadas geográficas (LatLng)
+          const point = L.point(mouseX, mouseY);
+          const latlng = map.containerPointToLatLng(point);
+
+          // Aplica o zoom centrado na coordenada exata do mouse
           if (e.deltaY < 0) {
-            map.setZoom(map.getZoom() + 1, { animate: true });
+            map.setZoomAround(latlng, map.getZoom() + 1, { animate: true });
           } else {
-            map.setZoom(map.getZoom() - 1, { animate: true });
+            map.setZoomAround(latlng, map.getZoom() - 1, { animate: true });
           }
         }, { passive: false });
 
@@ -1951,7 +1987,15 @@
 
           atualizarVisualTema();
           if (modalSettings) modalSettings.classList.remove('open');
-          alert("✅ Ajustes salvos com sucesso!");
+
+          // Exibe a notificação toast por 5 segundos
+          const toast = document.getElementById('toast-notificacao');
+          if (toast) {
+            toast.classList.add('show');
+            setTimeout(() => {
+              toast.classList.remove('show');
+            }, 5000); // 5000 milissegundos = 5 segundos
+          }
         });
       }
 
