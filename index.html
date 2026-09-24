@@ -9,9 +9,6 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <!-- Estilos da Aplicação -->
   <style>
-    /* =========================================================================
-      VARIÁVEIS DE TEMA (MODO ESCURO VS MODO CLARO)
-      ========================================================================= */
     :root {
       --bg-body: #0e1117;
       --bg-sidebar: #262730;
@@ -59,7 +56,6 @@
       overflow: hidden;
     }
 
-    /* --- SIDEBAR EXPANDIDA & COMPACTA (68PX) --- */
     aside {
       position: relative;
       width: 320px;
@@ -107,13 +103,8 @@
       transition: background-color 0.2s, transform 0.1s;
     }
 
-    .app-title:hover {
-      background-color: var(--bg-hover);
-    }
-
-    .app-title:active {
-      transform: scale(0.97);
-    }
+    .app-title:hover { background-color: var(--bg-hover); }
+    .app-title:active { transform: scale(0.97); }
 
     aside.collapsed .app-title {
       border-bottom: none;
@@ -124,20 +115,8 @@
       border-radius: 10px;
     }
 
-    .app-logo-icon {
-      font-size: 1.4rem;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      flex-shrink: 0;
-    }
-
-    aside.collapsed .sidebar-footer {
-      border-top: none;
-      justify-content: center;
-      width: 100%;
-      padding-top: 0;
-    }
+    .app-logo-icon { font-size: 1.4rem; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    aside.collapsed .sidebar-footer { border-top: none; justify-content: center; width: 100%; padding-top: 0; }
 
     .badge-version {
       align-self: flex-start;
@@ -149,12 +128,7 @@
       border: 1px solid var(--border-color);
     }
 
-    .upload-card-container {
-      display: flex;
-      flex-direction: column;
-      gap: 0.4rem;
-    }
-
+    .upload-card-container { display: flex; flex-direction: column; gap: 0.4rem; }
     .upload-card {
       background-color: var(--bg-card);
       border: 1px solid var(--border-color);
@@ -166,18 +140,9 @@
       gap: 0.5rem;
       cursor: pointer;
     }
-
     .upload-card:hover { border-color: #007BFF; }
 
-    .upload-card-content {
-      display: flex;
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 0.4rem;
-      overflow: hidden;
-      flex: 1;
-    }
-
+    .upload-card-content { display: flex; flex-direction: column; align-items: flex-start; gap: 0.4rem; overflow: hidden; flex: 1; }
     .upload-btn {
       display: inline-flex;
       align-items: center;
@@ -213,10 +178,7 @@
       cursor: pointer;
       flex-shrink: 0;
     }
-    .btn-remover-arquivo:hover {
-      background: #ef4444;
-      color: #ffffff;
-    }
+    .btn-remover-arquivo:hover { background: #ef4444; color: #ffffff; }
 
     .progress-box {
       display: none;
@@ -228,84 +190,22 @@
       border-radius: 8px;
       margin-top: 4px;
     }
-    .progress-bar-bg {
-      width: 100%;
-      height: 8px;
-      background: var(--bg-sidebar);
-      border: 1px solid var(--border-color);
-      border-radius: 4px;
-      overflow: hidden;
-    }
-    .progress-bar-fill {
-      height: 100%;
-      width: 0%;
-      background: linear-gradient(90deg, #007BFF, #6366f1);
-      transition: width 0.1s linear;
-    }
-    .progress-text {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-      display: flex;
-      justify-content: space-between;
-      font-weight: 500;
-    }
+    .progress-bar-bg { width: 100%; height: 8px; background: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 4px; overflow: hidden; }
+    .progress-bar-fill { height: 100%; width: 0%; background: linear-gradient(90deg, #007BFF, #6366f1); transition: width 0.1s linear; }
+    .progress-text { font-size: 0.72rem; color: var(--text-muted); display: flex; justify-content: space-between; font-weight: 500; }
 
-    .expander-container {
-      background: var(--bg-card);
-      border-radius: 8px;
-      border: 1px solid var(--border-color);
-      overflow: hidden;
-      display: flex;
-      flex-direction: column;
-    }
-
-    .expander-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      padding: 0.75rem;
-      cursor: pointer;
-      user-select: none;
-      background-color: var(--bg-card);
-    }
+    .expander-container { background: var(--bg-card); border-radius: 8px; border: 1px solid var(--border-color); overflow: hidden; display: flex; flex-direction: column; }
+    .expander-header { display: flex; justify-content: space-between; align-items: center; padding: 0.75rem; cursor: pointer; user-select: none; background-color: var(--bg-card); }
     .expander-header:hover { background-color: var(--bg-hover); }
 
-    .expander-title {
-      font-size: 0.85rem;
-      font-weight: 600;
-      color: var(--text-main);
-      display: flex;
-      align-items: center;
-      gap: 0.4rem;
-    }
-
-    .expander-icon {
-      width: 14px;
-      height: 14px;
-      color: var(--text-muted);
-      transition: transform 0.2s ease;
-      flex-shrink: 0;
-    }
+    .expander-title { font-size: 0.85rem; font-weight: 600; color: var(--text-main); display: flex; align-items: center; gap: 0.4rem; }
+    .expander-icon { width: 14px; height: 14px; color: var(--text-muted); transition: transform 0.2s ease; flex-shrink: 0; }
     .expander-container.open .expander-icon { transform: rotate(180deg); }
 
-    .expander-body {
-      display: none;
-      flex-direction: column;
-      gap: 0.75rem;
-      padding: 0 0.75rem 0.75rem 0.75rem;
-      border-top: 1px solid var(--border-light);
-      background: var(--bg-card);
-    }
-    .expander-container.open .expander-body { display: flex; }
+    .expander-body { display: none; flex-direction: column; gap: 0.75rem; padding: 0 0.75rem 0.75rem 0.75rem; border-top: 1px solid var(--border-light); background: var(--bg-card); }
+    .expander-body label { font-size: 0.75rem; color: var(--text-muted); margin-bottom: 2px; display: block; }
 
-    .expander-body label {
-      font-size: 0.75rem;
-      color: var(--text-muted);
-      margin-bottom: 2px;
-      display: block;
-    }
-
-    select, input[type="text"], input[type="number"] {
+    select, input[type="text"], input[type="number"], input[type="password"] {
       width: 100%;
       background-color: var(--bg-input);
       border: 1px solid var(--border-color);
@@ -316,12 +216,7 @@
       outline: none;
     }
 
-    .btn-group {
-      display: flex;
-      gap: 0.5rem;
-      margin-top: 0.25rem;
-    }
-
+    .btn-group { display: flex; gap: 0.5rem; margin-top: 0.25rem; }
     .btn-primary {
       flex: 1;
       background-color: #007BFF;
@@ -338,7 +233,6 @@
       gap: 6px;
     }
     .btn-primary:hover { background-color: #0056b3; }
-    .btn-primary:disabled { background-color: var(--border-color); cursor: not-allowed; }
 
     .btn-sugerir-rotas {
       background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
@@ -355,16 +249,7 @@
       gap: 8px;
       box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35);
     }
-    .btn-sugerir-rotas:hover {
-      background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
-      transform: translateY(-1px);
-    }
-    .btn-sugerir-rotas:disabled {
-      background: var(--border-color);
-      box-shadow: none;
-      cursor: not-allowed;
-      transform: none;
-    }
+    .btn-sugerir-rotas:hover { background: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%); transform: translateY(-1px); }
 
     .btn-secondary {
       flex: 1;
@@ -404,85 +289,17 @@
       cursor: pointer;
     }
     .chamado-item-btn:hover { background-color: var(--bg-hover); }
-    .chamado-item-btn.selected {
-      border-color: #007BFF;
-      background-color: rgba(0, 123, 255, 0.15);
-    }
+    .chamado-item-btn.selected { border-color: #007BFF; background-color: rgba(0, 123, 255, 0.15); }
 
-    .dia-card-option {
-      background: var(--bg-card);
-      border: 2px solid var(--border-color);
-      padding: 10px 12px;
-      border-radius: 8px;
-      margin-top: 8px;
-      cursor: pointer;
-    }
-    .dia-card-option:hover {
-      border-color: #6366f1;
-      background: var(--bg-hover);
-    }
-    .dia-card-option.active {
-      border-color: #6366f1;
-      background: rgba(99, 102, 241, 0.15);
-    }
-
-    .map-pin {
-      position: relative;
-      width: 34px;
-      height: 42px;
-      cursor: grab;
-      will-change: transform;
-      transform: translateZ(0);
-    }
+    .map-pin { position: relative; width: 34px; height: 42px; cursor: grab; will-change: transform; transform: translateZ(0); }
     .map-pin:active { cursor: grabbing; }
     .map-pin svg { width: 100%; height: 100%; }
 
-    .route-label-badge {
-      background-color: #1e293b;
-      color: #cbd5e1;
-      border: 1.5px solid #475569;
-      border-radius: 20px;
-      padding: 4px 10px;
-      font-size: 11px;
-      font-weight: 600;
-      white-space: nowrap;
-      cursor: pointer;
-      display: flex;
-      align-items: center;
-      gap: 5px;
-      user-select: none;
-      will-change: transform;
-      transform: translateZ(0);
-    }
-    .route-label-badge.active {
-      background-color: #007BFF;
-      color: #ffffff;
-      border-color: #ffffff;
-    }
+    .leaflet-tile-pane.map-dark-mode { filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%); }
+    .leaflet-popup-content-wrapper { background-color: var(--popup-bg) !important; color: var(--popup-text) !important; border: 1px solid var(--border-color); border-radius: 8px; }
+    .leaflet-popup-tip { background-color: var(--popup-bg) !important; }
 
-    .leaflet-tile-pane.map-dark-mode {
-      filter: invert(100%) hue-rotate(180deg) brightness(95%) contrast(90%);
-    }
-
-    .leaflet-popup-content-wrapper {
-      background-color: var(--popup-bg) !important;
-      color: var(--popup-text) !important;
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-    }
-    .leaflet-popup-tip {
-      background-color: var(--popup-bg) !important;
-    }
-
-    .sidebar-footer {
-      margin-top: auto;
-      display: flex;
-      align-items: center;
-      justify-content: flex-start;
-      padding-top: 0.75rem;
-      border-top: 1px solid var(--border-light);
-    }
-
+    .sidebar-footer { margin-top: auto; display: flex; align-items: center; justify-content: flex-start; padding-top: 0.75rem; border-top: 1px solid var(--border-light); }
     .btn-settings {
       background: var(--bg-card);
       border: 1px solid var(--border-color);
@@ -497,12 +314,7 @@
       transition: all 0.2s ease;
       flex-shrink: 0;
     }
-    .btn-settings:hover {
-      background: var(--bg-hover);
-      color: var(--text-main);
-      border-color: #6366f1;
-      transform: rotate(45deg);
-    }
+    .btn-settings:hover { background: var(--bg-hover); color: var(--text-main); border-color: #6366f1; transform: rotate(45deg); }
 
     .modal-overlay {
       display: none;
@@ -521,7 +333,9 @@
       border: 1px solid var(--border-color);
       border-radius: 12px;
       width: 90%;
-      max-width: 440px;
+      max-width: 480px;
+      max-height: 90vh;
+      overflow-y: auto;
       padding: 1.5rem;
       box-shadow: 0 10px 30px rgba(0, 0, 0, 0.4);
       display: flex;
@@ -530,60 +344,17 @@
       color: var(--text-main);
     }
 
-    .modal-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      border-bottom: 1px solid var(--border-light);
-      padding-bottom: 0.75rem;
-    }
-
-    .modal-title {
-      font-size: 1.05rem;
-      font-weight: 700;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-    }
-
-    .modal-close-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 1.3rem;
-      cursor: pointer;
-    }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border-light); padding-bottom: 0.75rem; }
+    .modal-title { font-size: 1.05rem; font-weight: 700; display: flex; align-items: center; gap: 0.5rem; }
+    .modal-close-btn { background: transparent; border: none; color: var(--text-muted); font-size: 1.3rem; cursor: pointer; }
     .modal-close-btn:hover { color: var(--text-main); }
+    .modal-body { display: flex; flex-direction: column; gap: 1.1rem; }
 
-    .modal-body {
-      display: flex;
-      flex-direction: column;
-      gap: 1.1rem;
-    }
+    .config-field { display: flex; flex-direction: column; gap: 0.35rem; }
+    .config-field label { font-size: 0.8rem; color: var(--text-main); font-weight: 600; }
+    .config-field small { font-size: 0.72rem; color: var(--text-muted); }
 
-    .config-field {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-    }
-
-    .config-field label {
-      font-size: 0.8rem;
-      color: var(--text-main);
-      font-weight: 600;
-    }
-
-    .config-field small {
-      font-size: 0.72rem;
-      color: var(--text-muted);
-    }
-
-    .theme-buttons-container {
-      display: flex;
-      gap: 0.5rem;
-      margin-top: 4px;
-    }
-
+    .theme-buttons-container { display: flex; gap: 0.5rem; margin-top: 4px; }
     .btn-toggle-option {
       flex: 1;
       display: flex;
@@ -600,64 +371,16 @@
       color: var(--text-muted);
     }
     .btn-toggle-option:hover { background: var(--bg-hover); }
-    .btn-toggle-option.active {
-      border-color: #007BFF;
-      background: rgba(0, 123, 255, 0.15);
-      color: var(--text-main);
-      box-shadow: 0 0 10px rgba(0, 123, 255, 0.3);
-    }
+    .btn-toggle-option.active { border-color: #007BFF; background: rgba(0, 123, 255, 0.15); color: var(--text-main); box-shadow: 0 0 10px rgba(0, 123, 255, 0.3); }
 
-    .toggle-switch-container {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 10px 12px;
-      background: var(--bg-card);
-      border: 1px solid var(--border-color);
-      border-radius: 8px;
-    }
+    .toggle-switch-container { display: flex; align-items: center; justify-content: space-between; padding: 10px 12px; background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 8px; }
+    .switch-info { display: flex; flex-direction: column; gap: 2px; }
+    .switch-label { font-size: 0.8rem; font-weight: 600; color: var(--text-main); }
 
-    .switch-info {
-      display: flex;
-      flex-direction: column;
-      gap: 2px;
-    }
-
-    .switch-label {
-      font-size: 0.8rem;
-      font-weight: 600;
-      color: var(--text-main);
-    }
-
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 44px;
-      height: 24px;
-      flex-shrink: 0;
-    }
+    .switch { position: relative; display: inline-block; width: 44px; height: 24px; flex-shrink: 0; }
     .switch input { opacity: 0; width: 0; height: 0; }
-
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0; left: 0; right: 0; bottom: 0;
-      background-color: #64748b;
-      transition: 0.3s;
-      border-radius: 24px;
-    }
-
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 18px;
-      width: 18px;
-      left: 3px;
-      bottom: 3px;
-      background-color: white;
-      transition: 0.3s;
-      border-radius: 50%;
-    }
+    .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #64748b; transition: 0.3s; border-radius: 24px; }
+    .slider:before { position: absolute; content: ""; height: 18px; width: 18px; left: 3px; bottom: 3px; background-color: white; transition: 0.3s; border-radius: 50%; }
     input:checked + .slider { background-color: #007BFF; }
     input:checked + .slider:before { transform: translateX(20px); }
 
@@ -674,240 +397,60 @@
       gap: 14px;
       color: #fafafa;
     }
-    .spinner {
-      width: 46px;
-      height: 46px;
-      border: 4px solid rgba(255, 255, 255, 0.1);
-      border-left-color: #007BFF;
-      border-radius: 50%;
-      animation: spin 0.8s linear infinite;
-    }
+    .spinner { width: 46px; height: 46px; border: 4px solid rgba(255, 255, 255, 0.1); border-left-color: #007BFF; border-radius: 50%; animation: spin 0.8s linear infinite; }
     @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-    main {
-      flex: 1;
-      display: flex;
-      flex-direction: column;
-      position: relative;
-      height: 100vh;
-      overflow: hidden;
-    }
+    main { flex: 1; display: flex; flex-direction: column; position: relative; height: 100vh; overflow: hidden; }
 
-    .tabs-bar {
-      display: flex;
-      background-color: var(--bg-sidebar);
-      padding: 6px 12px;
-      margin: 10px 15px 0 15px;
-      border-radius: 8px;
-      border: 1px solid var(--border-color);
-      gap: 8px;
-      align-items: center;
-      z-index: 500;
-    }
+    .tabs-bar { display: flex; background-color: var(--bg-sidebar); padding: 6px 12px; margin: 10px 15px 0 15px; border-radius: 8px; border: 1px solid var(--border-color); gap: 8px; align-items: center; z-index: 500; }
+    .tab-btn { background: transparent; border: none; color: var(--text-muted); font-size: 13px; font-weight: bold; padding: 6px 16px; border-radius: 6px; cursor: pointer; }
+    .tab-btn.active { background-color: #007BFF; color: #FFFFFF; }
 
-    .tab-btn {
-      background: transparent;
-      border: none;
-      color: var(--text-muted);
-      font-size: 13px;
-      font-weight: bold;
-      padding: 6px 16px;
-      border-radius: 6px;
-      cursor: pointer;
-    }
-    .tab-btn.active {
-      background-color: #007BFF;
-      color: #FFFFFF;
-    }
-
-    .rota-toolbar {
-      display: none;
-      gap: 10px;
-      align-items: center;
-      padding: 8px 15px;
-      background: var(--bg-card);
-      margin: 8px 15px 0 15px;
-      border-radius: 6px;
-      border: 1px solid var(--border-color);
-      z-index: 500;
-      position: relative;
-    }
-
-    .multiselect-dropdown {
-      position: relative;
-      flex: 2;
-      min-width: 220px;
-    }
-
-    .multiselect-btn {
-      width: 100%;
-      background-color: var(--bg-input);
-      border: 1px solid var(--border-color);
-      color: var(--text-main);
-      padding: 7px 10px;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      cursor: pointer;
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-
-    .multiselect-list {
-      display: none;
-      position: absolute;
-      top: 105%;
-      left: 0;
-      right: 0;
-      max-height: 250px;
-      overflow-y: auto;
-      background-color: var(--bg-sidebar);
-      border: 1px solid var(--border-color);
-      border-radius: 6px;
-      padding: 6px;
-      z-index: 2000;
-      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
-    }
-    .multiselect-list.open {
-      display: flex;
-      flex-direction: column;
-      gap: 4px;
-    }
-
-    .multiselect-item {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      padding: 6px 8px;
-      border-radius: 4px;
-      font-size: 0.8rem;
-      color: var(--text-main);
-      cursor: pointer;
-    }
+    .rota-toolbar { display: none; gap: 10px; align-items: center; padding: 8px 15px; background: var(--bg-card); margin: 8px 15px 0 15px; border-radius: 6px; border: 1px solid var(--border-color); z-index: 500; position: relative; }
+    .multiselect-dropdown { position: relative; flex: 2; min-width: 220px; }
+    .multiselect-btn { width: 100%; background-color: var(--bg-input); border: 1px solid var(--border-color); color: var(--text-main); padding: 7px 10px; border-radius: 4px; font-size: 0.8rem; cursor: pointer; display: flex; justify-content: space-between; align-items: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .multiselect-list { display: none; position: absolute; top: 105%; left: 0; right: 0; max-height: 250px; overflow-y: auto; background-color: var(--bg-sidebar); border: 1px solid var(--border-color); border-radius: 6px; padding: 6px; z-index: 2000; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); }
+    .multiselect-list.open { display: flex; flex-direction: column; gap: 4px; }
+    .multiselect-item { display: flex; align-items: center; gap: 8px; padding: 6px 8px; border-radius: 4px; font-size: 0.8rem; color: var(--text-main); cursor: pointer; }
     .multiselect-item:hover { background-color: var(--bg-hover); }
     .multiselect-item input[type="checkbox"] { width: auto; cursor: pointer; }
 
-    #map-container {
-      flex: 1;
-      width: calc(100% - 30px);
-      margin: 10px 15px 15px 15px;
-      border-radius: 8px;
-      overflow: hidden;
-      border: 1px solid var(--border-color);
-      position: relative;
-      background-color: var(--map-bg);
-    }
+    #map-container { flex: 1; width: calc(100% - 30px); margin: 10px 15px 15px 15px; border-radius: 8px; overflow: hidden; border: 1px solid var(--border-color); position: relative; background-color: var(--map-bg); }
+    #map { width: 100%; height: 100%; background-color: var(--map-bg); }
 
-    #map {
-      width: 100%;
-      height: 100%;
-      background-color: var(--map-bg);
-    }
+    .legenda-container { display: flex; flex-wrap: wrap; gap: 12px; background-color: var(--bg-sidebar); padding: 10px 15px; border-radius: 8px; border: 1px solid var(--border-color); margin: 0 15px 10px 15px; max-height: 90px; overflow-y: auto; }
+    .legenda-item { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 500; color: var(--text-main); }
+    .legenda-cor { width: 12px; height: 12px; border-radius: 50%; border: 1px solid #1E1E1E; flex-shrink: 0; }
 
-    .legenda-container {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 12px;
-      background-color: var(--bg-sidebar);
-      padding: 10px 15px;
-      border-radius: 8px;
-      border: 1px solid var(--border-color);
-      margin: 0 15px 10px 15px;
-      max-height: 90px;
-      overflow-y: auto;
-    }
-
-    .legenda-item {
-      display: inline-flex;
-      align-items: center;
-      gap: 6px;
-      font-size: 12px;
-      font-weight: 500;
-      color: var(--text-main);
-    }
-
-    .legenda-cor {
-      width: 12px;
-      height: 12px;
-      border-radius: 50%;
-      border: 1px solid #1E1E1E;
-      flex-shrink: 0;
-    }
-
-    .custom-cluster-icon {
-      border: 1px solid #1E1E1E;
-      border-radius: 50%;
-      color: white;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-weight: bold;
-      cursor: pointer;
-      will-change: transform;
-      transform: translateZ(0);
-    }
-
-    /* Aceleração de hardware por GPU para zero microtravadas */
-    #map, .leaflet-container, .leaflet-tile-pane, .leaflet-marker-pane {
-      transform: translateZ(0);
-      backface-visibility: hidden;
-      perspective: 1000px;
-      will-change: transform;
-    }
+    .custom-cluster-icon { border: 1px solid #1E1E1E; border-radius: 50%; color: white; display: flex; align-items: center; justify-content: center; font-weight: bold; cursor: pointer; will-change: transform; transform: translateZ(0); }
+    #map, .leaflet-container, .leaflet-tile-pane, .leaflet-marker-pane { transform: translateZ(0); backface-visibility: hidden; perspective: 1000px; will-change: transform; }
 
     #btn-cancelar-geocodificacao {
-      height: 20px !important;
-      min-height: 20px !important;
-      max-height: 20px !important;
-      padding: 0 10px !important;
-      line-height: 18px !important;
-      font-size: 11px !important;
-      display: inline-flex !important;
-      align-items: center !important;
-      justify-content: center !important;
-      box-sizing: border-box !important;
+      height: 20px !important; min-height: 20px !important; max-height: 20px !important;
+      padding: 0 10px !important; line-height: 18px !important; font-size: 11px !important;
+      display: inline-flex !important; align-items: center !important; justify-content: center !important; box-sizing: border-box !important;
     }
 
-    /* Estilo da notificação temporária (Toast) */
     .toast-aviso {
-      position: fixed;
-      bottom: 25px;
-      right: 25px;
-      background-color: #10B981;
-      color: #ffffff;
-      padding: 12px 20px;
-      border-radius: 8px;
-      font-size: 0.85rem;
-      font-weight: 600;
-      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3);
-      z-index: 4000;
-      opacity: 0;
-      transform: translateY(20px);
-      transition: opacity 0.3s ease, transform 0.3s ease;
-      pointer-events: none;
+      position: fixed; bottom: 25px; right: 25px; background-color: #10B981; color: #ffffff;
+      padding: 12px 20px; border-radius: 8px; font-size: 0.85rem; font-weight: 600;
+      box-shadow: 0 4px 14px rgba(0, 0, 0, 0.3); z-index: 4000; opacity: 0;
+      transform: translateY(20px); transition: opacity 0.3s ease, transform 0.3s ease; pointer-events: none;
     }
-    .toast-aviso.show {
-      opacity: 1;
-      transform: translateY(0);
-    }
+    .toast-aviso.show { opacity: 1; transform: translateY(0); }
   </style>
 </head>
 <body>
 
   <input type="file" id="file-input" accept=".xlsx, .xls" style="display: none;" />
 
-  <!-- Sidebar com Logo Interativo para Compactar/Expandir -->
   <aside id="sidebar">
-    <div class="badge-version">v0.9.5</div>
+    <div class="badge-version">v0.9.8 (Multi-APIs & Cache)</div>
     <div class="app-title" id="app-title-container" title="Clique para recolher ou expandir o menu">
       <span class="app-logo-icon">📍</span>
       <span class="app-title-text">My Maps BR</span>
     </div>
 
-    <!-- Upload / Remoção e Barra de Progresso -->
     <div class="upload-card-container">
       <div class="upload-card" id="upload-card">
         <div class="upload-card-content">
@@ -932,56 +475,28 @@
       </div>
 
       <div class="progress-box" id="progress-box">
-        <div class="progress-bar-bg">
-          <div class="progress-bar-fill" id="progress-fill"></div>
-        </div>
-        <div class="progress-text">
-          <span id="progress-status">Buscando endereço exato...</span>
-          <span id="progress-count">0%</span>
-        </div>
+        <div class="progress-bar-bg"><div class="progress-bar-fill" id="progress-fill"></div></div>
+        <div class="progress-text"><span id="progress-status">Buscando endereço exato...</span><span id="progress-count">0%</span></div>
       </div>
     </div>
 
-    <!-- Botão Sugerir Melhores Rotas -->
     <button class="btn-sugerir-rotas" id="btn-sugerir-rotas-sidebar" style="display: none;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <circle cx="12" cy="12" r="10"></circle>
-        <polyline points="12 6 12 12 16 14"></polyline>
+        <circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline>
       </svg>
       <span id="label-btn-rotas">🧠 Rotas Diárias de 5 Horas</span>
     </button>
 
-    <!-- Filtros Recolhíveis -->
     <div class="expander-container" id="filtros-container" style="display: none;">
       <div class="expander-header" id="expander-filtros-toggle">
         <div class="expander-title">⏳ Filtros</div>
-        <svg class="expander-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
+        <svg class="expander-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </div>
-
       <div class="expander-body">
-        <div>
-          <label>Intervenção:</label>
-          <select id="filtro-intervencao"><option value="Todos">Todos</option></select>
-        </div>
-
-        <div>
-          <label>Cliente:</label>
-          <select id="filtro-cliente"><option value="Todos">Todos</option></select>
-        </div>
-
-        <div>
-          <label>Região:</label>
-          <select id="filtro-regiao"><option value="Todos">Todos</option></select>
-        </div>
-
-        <!-- Contêiner do Filtro de Estado (exibido apenas se houver 2 ou mais UFs) -->
-        <div id="box-filtro-estado" style="display: none;">
-          <label>Estado (UF):</label>
-          <select id="filtro-estado"><option value="Todos">Todos</option></select>
-        </div>
-
+        <div><label>Intervenção:</label><select id="filtro-intervencao"><option value="Todos">Todos</option></select></div>
+        <div><label>Cliente:</label><select id="filtro-cliente"><option value="Todos">Todos</option></select></div>
+        <div><label>Região:</label><select id="filtro-regiao"><option value="Todos">Todos</option></select></div>
+        <div id="box-filtro-estado" style="display: none;"><label>Estado (UF):</label><select id="filtro-estado"><option value="Todos">Todos</option></select></div>
         <div class="btn-group">
           <button class="btn-primary" id="btn-aplicar-filtros">⚡ Aplicar</button>
           <button class="btn-secondary" id="btn-limpar-filtros">🧹 Limpar</button>
@@ -989,25 +504,19 @@
       </div>
     </div>
 
-    <!-- Lista de Chamados Recolhível -->
     <div class="expander-container" id="container-lista" style="display: none;">
       <div class="expander-header" id="expander-chamados-toggle">
         <div class="expander-title" id="label-chamados">📋 Lista de Chamados (0)</div>
-        <svg class="expander-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <polyline points="6 9 12 15 18 9"></polyline>
-        </svg>
+        <svg class="expander-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
       </div>
-
       <div class="expander-body">
         <input type="text" id="busca-chamado" placeholder="🔍 Ex: SP, Salvador ou 12345..." />
         <div class="lista-chamados-container" id="lista-chamados"></div>
       </div>
     </div>
 
-    <!-- Info Rota Sidebar -->
     <div id="sidebar-rota-info" style="display: none; background:var(--bg-card); padding:12px; border-radius:8px; font-size:13px; border:1px solid var(--border-color);"></div>
 
-    <!-- Rodapé com Botão de Manutenção (Sempre visível nos dois modos) -->
     <div class="sidebar-footer">
       <button class="btn-settings" id="btn-abrir-settings" title="Configurações e Manutenção">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
@@ -1018,68 +527,54 @@
     </div>
   </aside>
 
-  <!-- Modal de Configurações -->
+  <!-- Modal de Configurações com suporte a Multi-APIs -->
   <div class="modal-overlay" id="modal-settings">
     <div class="modal-card">
       <div class="modal-header">
-        <div class="modal-title">
-          <span>⚙️</span>
-          <span>Ajustes da Aplicação</span>
-        </div>
+        <div class="modal-title"><span>⚙️</span><span>Ajustes da Aplicação & APIs</span></div>
         <button class="modal-close-btn" id="btn-fechar-settings">&times;</button>
       </div>
       <div class="modal-body">
         
-        <!-- MODO DE PESQUISA -->
         <div class="config-field">
-          <label>Modo de Geocodificação (Precisão vs. Tempo):</label>
+          <label>Modo de Geocodificação:</label>
           <div class="theme-buttons-container">
-            <button class="btn-toggle-option" id="btn-busca-rapida">
-              <span>⚡ Rápida</span>
-            </button>
-            <button class="btn-toggle-option" id="btn-busca-detalhada">
-              <span>🎯 Detalhada</span>
-            </button>
+            <button class="btn-toggle-option" id="btn-busca-rapida"><span>⚡ Rápida</span></button>
+            <button class="btn-toggle-option" id="btn-busca-detalhada"><span>🎯 Detalhada</span></button>
           </div>
           <small id="desc-modo-busca">⚡ Rápida: Carregamento instantâneo via cidades e memória.</small>
         </div>
 
-        <!-- Tema Geral da Página -->
+        <div class="config-field">
+          <label>Chaves de API para Geocodificação (Opcional):</label>
+          <small>Se preenchidas, o sistema usará em cascata (HERE -> Mapbox -> Nominatim).</small>
+          <input type="password" id="cfg-key-here" placeholder="Chave API HERE (Opcional)" style="margin-top: 6px;" />
+          <input type="password" id="cfg-key-mapbox" placeholder="Chave Token Mapbox (Opcional)" style="margin-top: 6px;" />
+        </div>
+
         <div class="config-field">
           <label>Tema da Aplicação:</label>
           <div class="theme-buttons-container">
-            <button class="btn-toggle-option" id="btn-tema-claro">
-              <span>☀️ Modo Claro</span>
-            </button>
-            <button class="btn-toggle-option" id="btn-tema-escuro">
-              <span>🌙 Modo Escuro</span>
-            </button>
+            <button class="btn-toggle-option" id="btn-tema-claro"><span>☀️ Claro</span></button>
+            <button class="btn-toggle-option" id="btn-tema-escuro"><span>🌙 Escuro</span></button>
           </div>
-          <small>Altera as cores de toda a interface do sistema.</small>
         </div>
 
-        <!-- Botão ON/OFF mapa -->
         <div class="toggle-switch-container">
           <div class="switch-info">
             <span class="switch-label">Sincronizar mapa com o tema</span>
-            <small style="color: var(--text-muted); font-size: 0.7rem;">Aplica o modo escuro ao OpenStreetMap automaticamente.</small>
           </div>
-          <label class="switch">
-            <input type="checkbox" id="chk-sincronizar-mapa" checked>
-            <span class="slider"></span>
-          </label>
+          <label class="switch"><input type="checkbox" id="chk-sincronizar-mapa" checked><span class="slider"></span></label>
         </div>
 
         <div class="config-field">
           <label for="cfg-limite-horas">Jornada Diária de Atendimento (Horas):</label>
           <input type="number" id="cfg-limite-horas" min="1" max="12" step="0.5" value="5" />
-          <small>Tempo limite total de trânsito + serviços por dia.</small>
         </div>
 
         <div class="config-field">
           <label for="cfg-tempo-atendimento">Tempo Médio por Chamado (Minutos):</label>
           <input type="number" id="cfg-tempo-atendimento" min="10" max="180" step="5" value="45" />
-          <small>Tempo estimado de permanência técnica em cada cliente.</small>
         </div>
 
         <div class="config-field" style="margin-top: 0.25rem;">
@@ -1087,80 +582,60 @@
             🗑️ Limpar Todo o Cache de Coordenadas
           </button>
         </div>
-        
-        <div id="toast-notificacao" class="toast-aviso">✅ Ajustes salvos com sucesso!</div>
 
-        <button class="btn-primary" id="btn-salvar-settings" style="margin-top: 0.5rem;">
-          💾 Salvar Ajustes
-        </button>
+        <button class="btn-primary" id="btn-salvar-settings" style="margin-top: 0.5rem;">💾 Salvar Ajustes</button>
       </div>
     </div>
   </div>
 
-  <!-- Painel Principal -->
+  <div id="toast-notificacao" class="toast-aviso">✅ Ajustes salvos com sucesso!</div>
+
   <main>
     <div class="tabs-bar" id="tabs-bar" style="display: none;">
       <button class="tab-btn active" id="tab-geral">🗺️ Visão Geral</button>
       <button class="tab-btn" id="tab-rotas">🚗 Traçar Rotas</button>
     </div>
 
-    <!-- Toolbar de Rotas -->
     <div class="rota-toolbar" id="rota-toolbar">
       <input type="text" id="rota-saida" placeholder="🏠 Saída (ex: São Paulo - SP ou Videira - SC)" style="flex: 1.5;" />
-      
       <div class="multiselect-dropdown" id="multiselect-dropdown">
         <div class="multiselect-btn" id="multiselect-btn">
           <span id="multiselect-btn-text">🏁 Selecionar Destinos (0)</span>
-          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"></polyline></svg>
         </div>
         <div class="multiselect-list" id="multiselect-list"></div>
       </div>
-
-      <button class="btn-primary" id="btn-calc-rota" style="flex: 1;">
-        <span id="btn-calc-texto">🚀 Calcular Rota</span>
-      </button>
+      <button class="btn-primary" id="btn-calc-rota" style="flex: 1;"><span id="btn-calc-texto">🚀 Calcular Rota</span></button>
     </div>
 
-    <!-- Mapa -->
     <div id="map-container">
       <div id="map"></div>
-
-      <!-- Overlay de Bloqueio Durante Pesquisa Detalhada -->
       <div class="map-loading-overlay" id="map-loading-overlay">
         <div class="spinner"></div>
-        <div style="font-weight: 700; font-size: 1.05rem;" id="overlay-status-title">Geocodificando Ruas Reais...</div>
-        <div style="font-size: 0.85rem; color: #94a3b8;" id="overlay-status-sub">Buscando coordenadas exatas no OpenStreetMap antes de plotar no mapa.</div>
+        <div style="font-weight: 700; font-size: 1.05rem;" id="overlay-status-title">Geocodificando via Multi-APIs...</div>
+        <div style="font-size: 0.85rem; color: #94a3b8;" id="overlay-status-sub">Buscando coordenadas via HERE, Mapbox ou Nominatim.</div>
         <div style="width: 280px; margin-top: 6px;">
-          <div class="progress-bar-bg" style="height: 10px;">
-            <div class="progress-bar-fill" id="overlay-progress-fill"></div>
-          </div>
+          <div class="progress-bar-bg" style="height: 10px;"><div class="progress-bar-fill" id="overlay-progress-fill"></div></div>
           <div style="font-size: 0.75rem; text-align: center; margin-top: 4px; color: #cbd5e1;" id="overlay-progress-text">0 de 0 (0%)</div>
         </div>
         <button class="btn-secondary" id="btn-cancelar-geocodificacao">Cancelar e usar coordenadas de cidade</button>
       </div>
     </div>
 
-    <!-- Legenda Dinâmica -->
     <div class="legenda-container" id="legenda-dinamica" style="display: none;"></div>
   </main>
 
-  <!-- Dependências JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
   
-  <!-- Script da Aplicação Totalmente Integrado e Corrigido -->
   <script>
-    /* =========================================================================
-      MY MAPS BR - SCRIPT PRINCIPAL OTIMIZADO (v0.9.5)
-      ========================================================================= */
-
     let TEMPO_MEDIO_ATENDIMENTO_MIN = 45; 
     let LIMITE_DIARIO_MINUTOS = 300; 
     let temaAppAtual = "escuro";          
     let sincronizarComMapa = true;         
     let modoPesquisa = "rapida";          
+    let hereApiKey = localStorage.getItem('cfg_here_key') || "";
+    let mapboxToken = localStorage.getItem('cfg_mapbox_key') || "";
 
     const CENTROIDES_ESTADOS_BR = {
       "AC": [-8.77, -70.55], "AL": [-9.71, -35.73], "AM": [-3.07, -61.66],
@@ -1222,68 +697,40 @@
     let marcadoresPorOS = {};
     let destinosSelecionados = new Set();
     let marcadorAbertoPorClique = null;
-    let rotasPorDia = [];
-    let rotaPolylinesPorDia = [];
     let buscaDebounceTimer = null;
     let cancelarGeocodificacaoFlag = false;
 
-    /* =========================================================================
-      INICIALIZAÇÃO DO MAPA
-      ========================================================================= */
     function initMap() {
       if (!map) {
         map = L.map('map', {
-          zoomControl: true,
-          preferCanvas: true,
-          fadeAnimation: true,
-          zoomAnimation: true,
-          inertia: true,
-          worldCopyJump: false,
-          scrollWheelZoom: false,
-          zoomSnap: 1,
-          zoomDelta: 1
+          zoomControl: true, preferCanvas: true, fadeAnimation: true,
+          zoomAnimation: true, inertia: true, worldCopyJump: false,
+          scrollWheelZoom: false, zoomSnap: 1, zoomDelta: 1
         }).setView([-14.2350, -51.9253], 4);
 
-        // Controle manual e suave da roda do mouse direcionado ao cursor do mouse
         let ultimaRolleada = 0;
         map.getContainer().addEventListener('wheel', (e) => {
           e.preventDefault();
           const agora = Date.now();
-          if (agora - ultimaRolleada < 180) return; // Trava anti-disparo rápido (180ms)
+          if (agora - ultimaRolleada < 180) return;
           ultimaRolleada = agora;
-
-          // Obtém a posição exata do mouse em relação ao container do mapa
           const containerRect = map.getContainer().getBoundingClientRect();
           const mouseX = e.clientX - containerRect.left;
           const mouseY = e.clientY - containerRect.top;
-
-          // Converte a posição do pixel do mouse para coordenadas geográficas (LatLng)
-          const point = L.point(mouseX, mouseY);
-          const latlng = map.containerPointToLatLng(point);
-
-          // Aplica o zoom centrado na coordenada exata do mouse
-          if (e.deltaY < 0) {
-            map.setZoomAround(latlng, map.getZoom() + 1, { animate: true });
-          } else {
-            map.setZoomAround(latlng, map.getZoom() - 1, { animate: true });
-          }
+          const latlng = map.containerPointToLatLng(L.point(mouseX, mouseY));
+          if (e.deltaY < 0) map.setZoomAround(latlng, map.getZoom() + 1, { animate: true });
+          else map.setZoomAround(latlng, map.getZoom() - 1, { animate: true });
         }, { passive: false });
 
         osmTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-          maxZoom: 19,
-          minZoom: 3,
-          noWrap: true,
-          keepBuffer: 12,
-          updateWhenZooming: false,
-          updateWhenIdle: true,
-          referrerPolicy: 'origin',
+          maxZoom: 19, minZoom: 3, noWrap: true, keepBuffer: 12,
+          updateWhenZooming: false, updateWhenIdle: true, referrerPolicy: 'origin',
           attribution: '&copy; OpenStreetMap contributors'
         }).addTo(map);
 
         markersLayer.addTo(map);
         routesLayer.addTo(map);
         atualizarVisualTema();
-
         map.on('click', () => { marcadorAbertoPorClique = null; });
       }
     }
@@ -1305,17 +752,11 @@
       }
 
       if (tilePane) {
-        if (sincronizarComMapa && temaAppAtual === 'escuro') {
-          tilePane.classList.add('map-dark-mode');
-        } else {
-          tilePane.classList.remove('map-dark-mode');
-        }
+        if (sincronizarComMapa && temaAppAtual === 'escuro') tilePane.classList.add('map-dark-mode');
+        else tilePane.classList.remove('map-dark-mode');
       }
     }
 
-    /* =========================================================================
-      PROCESSAMENTO DE DADOS & GEOCODIFICAÇÃO
-      ========================================================================= */
     function normalizar(str) {
       return (str || "").toString()
         .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
@@ -1333,7 +774,6 @@
       const ufsValidas = Object.keys(CENTROIDES_ESTADOS_BR);
       const ufNorm = normalizar(textoUF).replace(/\s+/g, '');
       if (ufsValidas.includes(ufNorm)) return ufNorm;
-
       const cidNorm = normalizar(textoCidade);
       for (const uf of ufsValidas) {
         if (cidNorm.endsWith(` ${uf}`) || cidNorm.endsWith(`/${uf}`) || cidNorm.endsWith(`-${uf}`)) return uf;
@@ -1345,18 +785,13 @@
       const cidNorm = normalizar(cidade).replace(/\s+/g, ' ');
       const siglaUF = extrairSiglaUFValida(uf, cidade);
       const chaveCompleta = `${cidNorm}-${siglaUF}`;
-
       if (BASE_CIDADES_BRASIL[chaveCompleta]) return BASE_CIDADES_BRASIL[chaveCompleta];
-
       if (siglaUF) {
         for (const [k, v] of Object.entries(BASE_CIDADES_BRASIL)) {
           if (k.endsWith(`-${siglaUF}`) && k.replace(`-${siglaUF}`, '') === cidNorm) return v;
         }
         if (CENTROIDES_ESTADOS_BR[siglaUF]) return CENTROIDES_ESTADOS_BR[siglaUF];
       }
-
-      // Sem UF identificável: usa o centro geográfico do Brasil como último recurso,
-      // nunca assume um estado específico que pode estar errado.
       return [-14.2350, -51.9253];
     }
 
@@ -1368,98 +803,110 @@
     }
 
     /* --- CACHE DE GEOCODIFICAÇÃO (localStorage) --- */
+    const CACHE_CHAVE_GEO = 'geocodificacao_cache_v3';
     function obterCacheGeocodificacao() {
-      try {
-        const raw = localStorage.getItem('geocodificacao_cache');
-        return raw ? JSON.parse(raw) : {};
-      } catch (e) { return {}; }
+      try { const raw = localStorage.getItem(CACHE_CHAVE_GEO); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
     }
     function salvarCacheGeocodificacao() {
-      try { localStorage.setItem('geocodificacao_cache', JSON.stringify(cacheGeocodificacao)); } catch (e) {}
+      try { localStorage.setItem(CACHE_CHAVE_GEO, JSON.stringify(cacheGeocodificacao)); } catch (e) {}
     }
     let cacheGeocodificacao = obterCacheGeocodificacao();
 
-    /* --- CHAMADA AO NOMINATIM (OpenStreetMap) COM RATE LIMIT DE 1 REQ/SEG --- */
+    /* --- MOTOR MULTI-APIS EM CASCATA (HERE -> Mapbox -> Nominatim) --- */
     let ultimaChamadaNominatim = 0;
-    async function nominatimBuscar(query) {
-      const agora = Date.now();
-      const espera = Math.max(0, 1100 - (agora - ultimaChamadaNominatim));
-      if (espera > 0) await new Promise(r => setTimeout(r, espera));
-      ultimaChamadaNominatim = Date.now();
 
-      try {
-        const url = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&addressdetails=0&q=${encodeURIComponent(query)}`;
-        const resp = await fetch(url, { headers: { 'Accept-Language': 'pt-BR' } });
-        if (!resp.ok) return null;
-        const data = await resp.json();
-        if (data && data.length > 0) {
-          const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
-          if (coordenadaValidaBrasil(lat, lon)) return [lat, lon];
-        }
-        return null;
-      } catch (e) {
-        return null;
+    async function buscarAquiAPIsCascata(query) {
+      const queryNorm = normalizar(query);
+      if (cacheGeocodificacao[queryNorm]) return cacheGeocodificacao[queryNorm];
+
+      let coords = null;
+
+      // 1. Tenta API HERE se houver chave cadastrada
+      if (hereApiKey) {
+        try {
+          const urlHere = `https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(query)}&apiKey=${hereApiKey}`;
+          const resp = await fetch(urlHere);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data?.items?.length > 0) {
+              const pos = data.items[0].position;
+              if (coordenadaValidaBrasil(pos.lat, pos.lng)) coords = [pos.lat, pos.lng];
+            }
+          }
+        } catch (e) {}
       }
+
+      // 2. Tenta Mapbox se houver token cadastrado
+      if (!coords && mapboxToken) {
+        try {
+          const urlMapbox = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxToken}&country=br&limit=1`;
+          const resp = await fetch(urlMapbox);
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data?.features?.length > 0) {
+              const center = data.features[0].center; // [lng, lat]
+              if (coordenadaValidaBrasil(center[1], center[0])) coords = [center[1], center[0]];
+            }
+          }
+        } catch (e) {}
+      }
+
+      // 3. Fallback final: Nominatim (OpenStreetMap) público com rate limit de 1s
+      if (!coords) {
+        const agora = Date.now();
+        const espera = Math.max(0, 1100 - (agora - ultimaChamadaNominatim));
+        if (espera > 0) await new Promise(r => setTimeout(r, espera));
+        ultimaChamadaNominatim = Date.now();
+
+        try {
+          const urlOSM = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&addressdetails=0&q=${encodeURIComponent(query)}`;
+          const resp = await fetch(urlOSM, { headers: { 'Accept-Language': 'pt-BR' } });
+          if (resp.ok) {
+            const data = await resp.json();
+            if (data && data.length > 0) {
+              const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
+              if (coordenadaValidaBrasil(lat, lon)) coords = [lat, lon];
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (coords) {
+        cacheGeocodificacao[queryNorm] = coords;
+        salvarCacheGeocodificacao();
+      }
+      return coords;
     }
 
-    /* --- GEOCODIFICA UM CHAMADO: 1º endereço completo, 2º cidade, 3º base local offline --- */
     async function geocodificarItemDetalhado(item) {
-      const chaveEndereco = normalizar(`${item.Rua}|${item.Bairro}|${item.Cidade}|${item.SiglaUF}`);
-      const chaveCidade = normalizar(`${item.Cidade}|${item.SiglaUF}`);
-
-      if (cacheGeocodificacao[chaveEndereco]) {
-        return { pos: cacheGeocodificacao[chaveEndereco], precisao: 'endereco' };
-      }
-
-      // 1. Tenta o endereço completo (rua + bairro + cidade + UF)
       const ruaValida = item.Rua && !['nan', 'null', 'undefined', ''].includes(item.Rua.toLowerCase().trim());
       if (ruaValida) {
         const queryEndereco = [item.Rua, item.Bairro, item.Cidade, item.SiglaUF, 'Brasil'].filter(Boolean).join(', ');
-        const posEndereco = await nominatimBuscar(queryEndereco);
-        if (posEndereco) {
-          cacheGeocodificacao[chaveEndereco] = posEndereco;
-          salvarCacheGeocodificacao();
-          return { pos: posEndereco, precisao: 'endereco' };
-        }
+        const posEndereco = await buscarAquiAPIsCascata(queryEndereco);
+        if (posEndereco) return { pos: posEndereco, precisao: 'endereco' };
       }
 
-      // 2. Endereço não encontrado: tenta a cidade (cache primeiro, depois Nominatim)
-      if (cacheGeocodificacao[chaveCidade]) {
-        return { pos: cacheGeocodificacao[chaveCidade], precisao: 'cidade' };
-      }
       if (item.Cidade) {
         const queryCidade = [item.Cidade, item.SiglaUF, 'Brasil'].filter(Boolean).join(', ');
-        const posCidade = await nominatimBuscar(queryCidade);
-        if (posCidade) {
-          cacheGeocodificacao[chaveCidade] = posCidade;
-          salvarCacheGeocodificacao();
-          return { pos: posCidade, precisao: 'cidade' };
-        }
+        const posCidade = await buscarAquiAPIsCascata(queryCidade);
+        if (posCidade) return { pos: posCidade, precisao: 'cidade' };
       }
 
-      // 3. Nada encontrado online: usa a base local / centróide do estado como último recurso
       return { pos: resolverCoordenadaCidadeEstrita(item.Cidade, item.SiglaUF), precisao: 'cidade_offline' };
     }
 
-    /* --- LOOP DE GEOCODIFICAÇÃO DETALHADA COM PROGRESSO --- */
     async function iniciarGeocodificacaoDetalhada(lista) {
       cancelarGeocodificacaoFlag = false;
       const overlay = document.getElementById('map-loading-overlay');
       const fillOverlay = document.getElementById('overlay-progress-fill');
       const textoOverlay = document.getElementById('overlay-progress-text');
-      const tituloOverlay = document.getElementById('overlay-status-title');
-      const subOverlay = document.getElementById('overlay-status-sub');
 
       overlay.style.display = 'flex';
-      tituloOverlay.textContent = 'Buscando endereços reais...';
-      subOverlay.textContent = 'Endereço exato do cliente primeiro; se não encontrar, usamos a coordenada da cidade.';
-
       const total = lista.length;
       let concluidos = 0;
 
       for (const item of lista) {
         if (cancelarGeocodificacaoFlag) break;
-
         const resultado = await geocodificarItemDetalhado(item);
         item.pos = resultado.pos;
         item.precisao = resultado.precisao;
@@ -1469,10 +916,7 @@
         fillOverlay.style.width = pct + '%';
         textoOverlay.textContent = `${concluidos} de ${total} (${pct}%)`;
 
-        // Re-renderiza o mapa periodicamente para dar feedback visual sem travar
-        if (concluidos % 10 === 0 || concluidos === total) {
-          renderizarMarcadores(dfFinal, false);
-        }
+        if (concluidos % 10 === 0 || concluidos === total) renderizarMarcadores(dfFinal, false);
       }
 
       overlay.style.display = 'none';
@@ -1497,9 +941,7 @@
       if (!val) return "";
       if (typeof val === "number") {
         const dataJs = new Date(Math.round((val - 25569) * 86400 * 1000));
-        if (!isNaN(dataJs.getTime())) {
-          return dataJs.toLocaleDateString("pt-BR") + " " + dataJs.toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' });
-        }
+        if (!isNaN(dataJs.getTime())) return dataJs.toLocaleDateString("pt-BR") + " " + dataJs.toLocaleTimeString("pt-BR", { hour: '2-digit', minute: '2-digit' });
       }
       return String(val).trim();
     }
@@ -1549,8 +991,7 @@
         cCidade = mapearColuna(linha, ["Cidade", "Municipio"]);
         cEndereco = mapearColuna(linha, ["Endereco", "Logradouro", "Rua"]);
         if (cOS && (cCidade || cEndereco)) {
-          headerRowIndex = r;
-          colunas = linha;
+          headerRowIndex = r; colunas = linha;
           cRegiao = mapearColuna(linha, ["Regiao", "Regional"]);
           cCliente = mapearColuna(linha, ["Cliente", "RazaoSocial"]);
           cLocal = mapearColuna(linha, ["LocalAtendimento", "Local"]);
@@ -1565,8 +1006,7 @@
       const cSlaUnificado = mapearColuna(colunas, ["LimiteAtendimento", "SLA", "Prazo"]);
 
       const vistos = new Set();
-      dfRaw = [];
-      chamadosMap.clear();
+      dfRaw = []; chamadosMap.clear();
 
       for (let i = 0; i < jsonRows.length; i++) {
         const row = jsonRows[i];
@@ -1582,7 +1022,6 @@
         const localNome = cLocal && row[cLocal] ? String(row[cLocal]).trim() : `${cidVal} (OS ${codOS})`;
         const regiaoVal = cRegiao && row[cRegiao] ? String(row[cRegiao]).trim() : "Não Informado";
         const clienteVal = cCliente && row[cCliente] ? String(row[cCliente]).trim() : "Não Informado";
-
         let slaFinal = mapaSlaChamados.get(codOS) || (cSlaUnificado && row[cSlaUnificado] ? formatarValorSLA(row[cSlaUnificado]) : "");
 
         const partesEndereco = [];
@@ -1617,13 +1056,11 @@
       popularFiltros(dfFinal);
       if (map) map.invalidateSize();
 
-      // Render instantâneo com coordenadas de cidade/base local, para não deixar a tela vazia
       renderizarMarcadores(dfFinal, true);
       renderizarLegendaDinamica(dfFinal);
       renderizarListaChamados(dfFinal);
       popularMultiSelectDestinos(dfFinal);
 
-      // Modo Detalhada: busca endereço real (rua) no OpenStreetMap, com fallback para cidade
       if (modoPesquisa === 'detalhada') {
         await iniciarGeocodificacaoDetalhada(dfRaw);
         renderizarLegendaDinamica(dfFinal);
@@ -1633,9 +1070,7 @@
 
     function removerPlanilhaAtual() {
       dfRaw = []; dfFinal = []; chamadosMap.clear(); destinosSelecionados.clear();
-      rotasPorDia = []; rotaPolylinesPorDia = []; chamadoSelecionado = null; marcadorAbertoPorClique = null;
       cancelarGeocodificacaoFlag = true;
-
       if (markersLayer) markersLayer.clearLayers();
       if (routesLayer) routesLayer.clearLayers();
       if (map) map.setView([-14.2350, -51.9253], 4);
@@ -1657,9 +1092,6 @@
       document.getElementById('tab-rotas').classList.remove('active');
     }
 
-    /* =========================================================================
-      RENDERIZAÇÃO DE MAPA E LISTAS COM DOCUMENT FRAGMENT (ALTA PERFORMANCE)
-      ========================================================================= */
     function obterCorPrioritaria(listaIntervencoes) {
       const contagem = {};
       for (const interv of listaIntervencoes) { contagem[interv] = (contagem[interv] || 0) + 1; }
@@ -1689,7 +1121,6 @@
       Object.values(grupos).forEach(grupo => {
         const primeiro = grupo[0];
         bounds.push(primeiro.pos);
-
         const total = grupo.length;
         const cor = obterCorPrioritaria(grupo.map(g => g.Intervencao));
         const raio = Math.min(9 + (total * 0.2), 28);
@@ -1701,14 +1132,9 @@
           iconSize: [diam, diam], iconAnchor: [raio, raio]
         });
 
-        const rotuloPrecisao = primeiro.precisao === 'endereco' ? '📍 Endereço exato'
-          : primeiro.precisao === 'cidade' ? '🏙️ Centro da cidade (via OSM)'
-          : '🏙️ Centro da cidade (aproximado)';
-
         let htmlPopup = `<div style="font-family: Arial, sans-serif; min-width: 230px;">
           <b style="color:#FF4B4B; font-size:13px;">🏢 ${primeiro.LocalAtendimento}</b><br>
-          <small>📍 ${primeiro.EnderecoCompleto}</small><br>
-          <small style="color:#94a3b8;">${rotuloPrecisao}</small><hr style="margin:6px 0;">`;
+          <small>📍 ${primeiro.EnderecoCompleto}</small><hr style="margin:6px 0;">`;
 
         grupo.forEach((ch, j) => {
           htmlPopup += `<b>OS:</b> ${ch.CodOS} | <b>Cliente:</b> ${ch.Cliente}<br><b>Intervenção:</b> ${ch.Intervencao}<br>`;
@@ -1735,9 +1161,7 @@
         markersLayer.addLayer(marker);
       });
 
-      if (bounds.length > 0 && ajustarZoom) {
-        map.fitBounds(bounds, { padding: [50, 50], maxZoom: 8 });
-      }
+      if (bounds.length > 0 && ajustarZoom) map.fitBounds(bounds, { padding: [50, 50], maxZoom: 8 });
     }
 
     function popularFiltros(dados) {
@@ -1759,13 +1183,8 @@
 
       const estados = [...new Set(dados.map(d => d.SiglaUF))].sort();
       const boxEstado = document.getElementById('box-filtro-estado');
-      if (estados.length > 1) {
-        preencherSelect('filtro-estado', estados);
-        boxEstado.style.display = 'block';
-      } else {
-        boxEstado.style.display = 'none';
-        document.getElementById('filtro-estado').value = 'Todos';
-      }
+      if (estados.length > 1) { preencherSelect('filtro-estado', estados); boxEstado.style.display = 'block'; }
+      else { boxEstado.style.display = 'none'; document.getElementById('filtro-estado').value = 'Todos'; }
     }
 
     function renderizarLegendaDinamica(dadosFiltrados) {
@@ -1861,7 +1280,6 @@
         });
         container.appendChild(fragment);
       }
-
       destinosSelecionados.forEach(sel => { if (!destinosValidos.has(sel)) destinosSelecionados.delete(sel); });
       atualizarTextoBotaoMultiSelect();
     }
@@ -1872,25 +1290,18 @@
       btnText.textContent = count === 0 ? "🏁 Selecionar Destinos (0)" : `🏁 ${count} chamado(s) selecionado(s)`;
     }
 
-    /* =========================================================================
-      ROTEAMENTO E CONFIGURAÇÕES
-      ========================================================================= */
     async function calcularRotasDiariasHoras() {
       const saidaStr = document.getElementById('rota-saida').value.trim();
       if (!saidaStr) { alert("❌ Informe a cidade de saída do técnico."); return; }
-
       if (destinosSelecionados.size === 0) {
         dfFinal.forEach(d => destinosSelecionados.add(d.CodOS));
         popularMultiSelectDestinos(dfFinal);
       }
-
       const [cidS, ufS] = saidaStr.split(/[\/-]/).map(s => s.trim());
       const pA = resolverCoordenadaRapida(cidS || saidaStr, ufS || "SC", 0);
       let chamadosParaAtender = [];
       destinosSelecionados.forEach(codOS => { const item = chamadosMap.get(codOS); if (item?.pos) chamadosParaAtender.push(item); });
-
       if (chamadosParaAtender.length === 0) { alert("❌ Nenhum destino válido."); return; }
-      
       const diasCalculados = [{ diaNum: 1, cor: CORES_DIAS[0], paradas: chamadosParaAtender, duracaoTransitoMin: 60, distanciaTotalKm: 45 }];
       await desenharRotasPorDias(pA, diasCalculados);
     }
@@ -1898,7 +1309,6 @@
     async function desenharRotasPorDias(pontoSaida, diasCalculados) {
       routesLayer.clearLayers();
       const boundsTodasRotas = [pontoSaida];
-
       for (const dia of diasCalculados) {
         dia.paradas.forEach((item, pIdx) => {
           boundsTodasRotas.push(item.pos);
@@ -1913,9 +1323,6 @@
       map.fitBounds(boundsTodasRotas, { padding: [50, 50] });
     }
 
-    /* =========================================================================
-      EVENT LISTENERS GERAIS & CORREÇÃO DO MODAL DE MANUTENÇÃO
-      ========================================================================= */
     document.addEventListener('DOMContentLoaded', () => {
       const modalSettings = document.getElementById('modal-settings');
       const btnAbrirSettings = document.getElementById('btn-abrir-settings');
@@ -1923,56 +1330,35 @@
       const btnSalvarSettings = document.getElementById('btn-salvar-settings');
       const btnLimparCache = document.getElementById('btn-limpar-cache-app');
 
+      // Popular inputs de chaves salvas anteriormente
+      const inputHere = document.getElementById('cfg-key-here');
+      const inputMapbox = document.getElementById('cfg-key-mapbox');
+      if (inputHere) inputHere.value = hereApiKey;
+      if (inputMapbox) inputMapbox.value = mapboxToken;
+
       if (btnAbrirSettings && modalSettings) {
-        btnAbrirSettings.addEventListener('click', (e) => {
-          e.stopPropagation();
-          modalSettings.classList.add('open');
-        });
+        btnAbrirSettings.addEventListener('click', (e) => { e.stopPropagation(); modalSettings.classList.add('open'); });
       }
-
       if (btnFecharSettings && modalSettings) {
-        btnFecharSettings.addEventListener('click', () => {
-          modalSettings.classList.remove('open');
-        });
+        btnFecharSettings.addEventListener('click', () => modalSettings.classList.remove('open'));
       }
-
       if (modalSettings) {
-        modalSettings.addEventListener('click', (e) => {
-          if (e.target === modalSettings) {
-            modalSettings.classList.remove('open');
-          }
-        });
+        modalSettings.addEventListener('click', (e) => { if (e.target === modalSettings) modalSettings.classList.remove('open'); });
       }
 
-      // Configurações de Tema no Modal
       const btnTemaClaro = document.getElementById('btn-tema-claro');
       const btnTemaEscuro = document.getElementById('btn-tema-escuro');
-      if (btnTemaClaro) {
-        btnTemaClaro.addEventListener('click', () => { temaAppAtual = 'claro'; atualizarVisualTema(); });
-      }
-      if (btnTemaEscuro) {
-        btnTemaEscuro.addEventListener('click', () => { temaAppAtual = 'escuro'; atualizarVisualTema(); });
-      }
+      if (btnTemaClaro) btnTemaClaro.addEventListener('click', () => { temaAppAtual = 'claro'; atualizarVisualTema(); });
+      if (btnTemaEscuro) btnTemaEscuro.addEventListener('click', () => { temaAppAtual = 'escuro'; atualizarVisualTema(); });
 
       const btnBuscaRapida = document.getElementById('btn-busca-rapida');
       const btnBuscaDetalhada = document.getElementById('btn-busca-detalhada');
-      const descModoBusca = document.getElementById('desc-modo-busca');
       if (btnBuscaRapida) {
         btnBuscaRapida.classList.add('active');
-        btnBuscaRapida.addEventListener('click', () => {
-          modoPesquisa = 'rapida';
-          btnBuscaRapida.classList.add('active');
-          if (btnBuscaDetalhada) btnBuscaDetalhada.classList.remove('active');
-          if (descModoBusca) descModoBusca.textContent = '⚡ Rápida: Carregamento instantâneo via cidades e memória.';
-        });
+        btnBuscaRapida.addEventListener('click', () => { modoPesquisa = 'rapida'; btnBuscaRapida.classList.add('active'); if(btnBuscaDetalhada) btnBuscaDetalhada.classList.remove('active'); });
       }
       if (btnBuscaDetalhada) {
-        btnBuscaDetalhada.addEventListener('click', () => {
-          modoPesquisa = 'detalhada';
-          btnBuscaDetalhada.classList.add('active');
-          if (btnBuscaRapida) btnBuscaRapida.classList.remove('active');
-          if (descModoBusca) descModoBusca.textContent = '🎯 Detalhada: busca o endereço exato do cliente no OpenStreetMap (mais lenta, ~1 req/seg); se não encontrar, usa a coordenada da cidade.';
-        });
+        btnBuscaDetalhada.addEventListener('click', () => { modoPesquisa = 'detalhada'; btnBuscaDetalhada.classList.add('active'); if(btnBuscaRapida) btnBuscaRapida.classList.remove('active'); });
       }
 
       if (btnSalvarSettings) {
@@ -1985,16 +1371,18 @@
           if (tempoInput) TEMPO_MEDIO_ATENDIMENTO_MIN = parseInt(tempoInput.value) || 45;
           if (sincMapa) sincronizarComMapa = sincMapa.checked;
 
+          hereApiKey = inputHere ? inputHere.value.trim() : "";
+          mapboxToken = inputMapbox ? inputMapbox.value.trim() : "";
+          localStorage.setItem('cfg_here_key', hereApiKey);
+          localStorage.setItem('cfg_mapbox_key', mapboxToken);
+
           atualizarVisualTema();
           if (modalSettings) modalSettings.classList.remove('open');
 
-          // Exibe a notificação toast por 5 segundos
           const toast = document.getElementById('toast-notificacao');
           if (toast) {
             toast.classList.add('show');
-            setTimeout(() => {
-              toast.classList.remove('show');
-            }, 5000); // 5000 milissegundos = 5 segundos
+            setTimeout(() => toast.classList.remove('show'), 5000);
           }
         });
       }
@@ -2002,7 +1390,7 @@
       if (btnLimparCache) {
         btnLimparCache.addEventListener('click', () => {
           if (confirm("Deseja realmente limpar todo o cache de coordenadas do navegador?")) {
-            localStorage.removeItem('geocodificacao_cache');
+            localStorage.removeItem(CACHE_CHAVE_GEO);
             cacheGeocodificacao = {};
             alert("🧹 Cache esvaziado com sucesso!");
           }
@@ -2010,11 +1398,7 @@
       }
 
       const btnCancelarGeo = document.getElementById('btn-cancelar-geocodificacao');
-      if (btnCancelarGeo) {
-        btnCancelarGeo.addEventListener('click', () => {
-          cancelarGeocodificacaoFlag = true;
-        });
-      }
+      if (btnCancelarGeo) btnCancelarGeo.addEventListener('click', () => { cancelarGeocodificacaoFlag = true; });
     });
 
     document.getElementById('upload-card').addEventListener('click', (e) => {
@@ -2059,7 +1443,6 @@
     document.addEventListener('click', (e) => { if (!document.getElementById('multiselect-dropdown').contains(e.target)) multiList.classList.remove('open'); });
 
     document.getElementById('tab-geral').addEventListener('click', () => {
-      abaAtiva = "geral";
       document.getElementById('tab-geral').classList.add('active');
       document.getElementById('tab-rotas').classList.remove('active');
       document.getElementById('rota-toolbar').style.display = 'none';
@@ -2070,7 +1453,6 @@
     });
 
     document.getElementById('tab-rotas').addEventListener('click', () => {
-      abaAtiva = "rotas";
       document.getElementById('tab-rotas').classList.add('active');
       document.getElementById('tab-geral').classList.remove('active');
       document.getElementById('rota-toolbar').style.display = 'flex';
@@ -2081,7 +1463,6 @@
     document.getElementById('btn-calc-rota').addEventListener('click', calcularRotasDiariasHoras);
     document.getElementById('btn-sugerir-rotas-sidebar').addEventListener('click', calcularRotasDiariasHoras);
 
-    // Inicialização do Mapa
     initMap();
   </script>
 </body>
