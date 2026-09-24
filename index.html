@@ -708,18 +708,35 @@
           scrollWheelZoom: false, zoomSnap: 1, zoomDelta: 1
         }).setView([-14.2350, -51.9253], 4);
 
-        let ultimaRolleada = 0;
+        let acumuladorDelta = 0;
+        let timerResetDelta = null;
+
         map.getContainer().addEventListener('wheel', (e) => {
           e.preventDefault();
-          const agora = Date.now();
-          if (agora - ultimaRolleada < 180) return;
-          ultimaRolleada = agora;
+          
+          // Acumula a inércia do trackpad para evitar disparos falsos ou inversões bruscas
+          acumuladorDelta += e.deltaY;
+
+          clearTimeout(timerResetDelta);
+          timerResetDelta = setTimeout(() => {
+            acumuladorDelta = 0;
+          }, 100);
+
+          if (Math.abs(acumuladorDelta) < 30) return; // Sensibilidade mínima para evitar micro-movimentos
+
           const containerRect = map.getContainer().getBoundingClientRect();
           const mouseX = e.clientX - containerRect.left;
           const mouseY = e.clientY - containerRect.top;
           const latlng = map.containerPointToLatLng(L.point(mouseX, mouseY));
-          if (e.deltaY < 0) map.setZoomAround(latlng, map.getZoom() + 1, { animate: true });
-          else map.setZoomAround(latlng, map.getZoom() - 1, { animate: true });
+
+          // Executa o zoom com base na direção real do acumulador
+          if (acumuladorDelta > 0) {
+            map.setZoomAround(latlng, map.getZoom() - 1, { animate: true });
+          } else {
+            map.setZoomAround(latlng, map.getZoom() + 1, { animate: true });
+          }
+
+          acumuladorDelta = 0; // Reseta após o disparo para manter a fluidez
         }, { passive: false });
 
         osmTileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
