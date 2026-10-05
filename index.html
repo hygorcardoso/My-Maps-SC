@@ -454,7 +454,7 @@
   <input type="file" id="file-input" accept=".xlsx, .xls" style="display: none;" />
 
   <aside id="sidebar">
-    <div class="badge-version">v0.9.9 (Multi-APIs & Cache)</div>
+    <div class="badge-version">v0.9.10)</div>
     <div class="app-title" id="app-title-container" title="Clique para recolher ou expandir o menu">
       <span class="app-logo-icon">📍</span>
       <span class="app-title-text">My Maps BR</span>
@@ -556,7 +556,7 @@
 
         <div class="config-field">
           <label>Chaves de API para Geocodificação (Opcional):</label>
-          <small>Se preenchidas, o sistema usará em cascata (HERE -> Mapbox -> Nominatim).</small>
+          <small>Nominatim e Photon são sempre consultados; HERE e Mapbox entram em paralelo se houver chave. O ponto precisa cair dentro do município (IBGE).</small>
           <input type="password" id="cfg-key-here" placeholder="Chave API HERE (Opcional)" style="margin-top: 6px;" />
           <input type="password" id="cfg-key-mapbox" placeholder="Chave Token Mapbox (Opcional)" style="margin-top: 6px;" />
         </div>
@@ -622,7 +622,7 @@
       <div class="map-loading-overlay" id="map-loading-overlay">
         <div class="spinner"></div>
         <div style="font-weight: 700; font-size: 1.05rem;" id="overlay-status-title">Geocodificando via Multi-APIs...</div>
-        <div style="font-size: 0.85rem; color: #94a3b8;" id="overlay-status-sub">Buscando coordenadas via HERE, Mapbox ou Nominatim.</div>
+        <div style="font-size: 0.85rem; color: #94a3b8;" id="overlay-status-sub">Validando cada endereço em vários provedores, IBGE e BrasilAPI.</div>
         <div style="width: 280px; margin-top: 6px;">
           <div class="progress-bar-bg" style="height: 10px;"><div class="progress-bar-fill" id="overlay-progress-fill"></div></div>
           <div style="font-size: 0.75rem; text-align: center; margin-top: 4px; color: #cbd5e1;" id="overlay-progress-text">0 de 0 (0%)</div>
@@ -829,7 +829,7 @@
     }
 
     /* --- CACHE DE GEOCODIFICAÇÃO (localStorage) --- */
-    const CACHE_CHAVE_GEO = 'geocodificacao_cache_v3';
+    const CACHE_CHAVE_GEO = 'geocodificacao_cache_v4';
     function obterCacheGeocodificacao() {
       try { const raw = localStorage.getItem(CACHE_CHAVE_GEO); return raw ? JSON.parse(raw) : {}; } catch (e) { return {}; }
     }
@@ -838,87 +838,193 @@
     }
     let cacheGeocodificacao = obterCacheGeocodificacao();
 
-    /* --- MOTOR MULTI-APIS EM CASCATA (HERE -> Mapbox -> Nominatim) --- */
-    let ultimaChamadaNominatim = 0;
+    /* ===== DUPLA VERIFICAÇÃO DE ENDEREÇOS ===== */
+    const STATUS_COR = { confirmado: '#10B981', revisar: '#F59E0B', falhou: '#EF4444' };
+    const STATUS_EMOJI = { confirmado: '🟢', revisar: '🟡', falhou: '🔴' };
 
-    async function buscarAquiAPIsCascata(query) {
-      const queryNorm = normalizar(query);
-      if (cacheGeocodificacao[queryNorm]) return cacheGeocodificacao[queryNorm];
-
-      let coords = null;
-
-      // 1. Tenta API HERE se houver chave cadastrada
-      if (hereApiKey) {
-        try {
-          const urlHere = `https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(query)}&apiKey=${hereApiKey}`;
-          const resp = await fetch(urlHere);
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data?.items?.length > 0) {
-              const pos = data.items[0].position;
-              if (coordenadaValidaBrasil(pos.lat, pos.lng)) coords = [pos.lat, pos.lng];
-            }
-          }
-        } catch (e) {}
-      }
-
-      // 2. Tenta Mapbox se houver token cadastrado
-      if (!coords && mapboxToken) {
-        try {
-          const urlMapbox = `https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(query)}.json?access_token=${mapboxToken}&country=br&limit=1`;
-          const resp = await fetch(urlMapbox);
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data?.features?.length > 0) {
-              const center = data.features[0].center; // [lng, lat]
-              if (coordenadaValidaBrasil(center[1], center[0])) coords = [center[1], center[0]];
-            }
-          }
-        } catch (e) {}
-      }
-
-      // 3. Fallback final: Nominatim (OpenStreetMap) público com rate limit de 1s
-      if (!coords) {
-        const agora = Date.now();
-        const espera = Math.max(0, 1100 - (agora - ultimaChamadaNominatim));
-        if (espera > 0) await new Promise(r => setTimeout(r, espera));
-        ultimaChamadaNominatim = Date.now();
-
-        try {
-          const urlOSM = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&addressdetails=0&q=${encodeURIComponent(query)}`;
-          const resp = await fetch(urlOSM, { headers: { 'Accept-Language': 'pt-BR' } });
-          if (resp.ok) {
-            const data = await resp.json();
-            if (data && data.length > 0) {
-              const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
-              if (coordenadaValidaBrasil(lat, lon)) coords = [lat, lon];
-            }
-          }
-        } catch (e) {}
-      }
-
-      if (coords) {
-        cacheGeocodificacao[queryNorm] = coords;
-        salvarCacheGeocodificacao();
-      }
-      return coords;
+    function haversine([lat1, lon1], [lat2, lon2]) {
+      const R = 6371000, rad = x => x * Math.PI / 180;
+      const a = Math.sin(rad(lat2 - lat1) / 2) ** 2 +
+        Math.cos(rad(lat1)) * Math.cos(rad(lat2)) * Math.sin(rad(lon2 - lon1) / 2) ** 2;
+      return 2 * R * Math.asin(Math.sqrt(a));
     }
 
-    async function geocodificarItemDetalhado(item) {
-      const ruaValida = item.Rua && !['nan', 'null', 'undefined', ''].includes(item.Rua.toLowerCase().trim());
-      if (ruaValida) {
-        const queryEndereco = [item.Rua, item.Bairro, item.Cidade, item.SiglaUF, 'Brasil'].filter(Boolean).join(', ');
-        const posEndereco = await buscarAquiAPIsCascata(queryEndereco);
-        if (posEndereco) return { pos: posEndereco, precisao: 'endereco' };
+    function similaridade(a, b) {
+      a = normalizar(a); b = normalizar(b);
+      if (!a || !b) return 0;
+      if (a === b) return 1;
+      const bg = s => new Set([...s].slice(0, -1).map((_, i) => s.slice(i, i + 2)));
+      const A = bg(a), B = bg(b);
+      if (A.size + B.size === 0) return 0;
+      return (2 * [...A].filter(x => B.has(x)).length) / (A.size + B.size);
+    }
+
+    function limparRua(s) {
+      return normalizar((s || '').split(',')[0])
+        .replace(/^R /, 'RUA ').replace(/^AV /, 'AVENIDA ').replace(/^AL /, 'ALAMEDA ')
+        .replace(/^TV /, 'TRAVESSA ').replace(/^ROD /, 'RODOVIA ').replace(/ \d+.*$/, '').trim();
+    }
+    const similaridadeRua = (a, b) => similaridade(limparRua(a), limparRua(b));
+
+    /* --- Ponto dentro do polígono (ray casting) --- */
+    function pontoNoAnel(lat, lon, anel) {
+      let dentro = false;
+      for (let i = 0, j = anel.length - 1; i < anel.length; j = i++) {
+        const [xi, yi] = anel[i], [xj, yj] = anel[j];
+        if ((yi > lat) !== (yj > lat) && lon < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) dentro = !dentro;
+      }
+      return dentro;
+    }
+    function pontoNoPoligono(lat, lon, geo) {
+      const g = geo.features?.[0]?.geometry || geo.geometry || geo;
+      if (!g || !g.coordinates) return false;
+      const polys = g.type === 'Polygon' ? [g.coordinates] : g.coordinates;
+      return polys.some(p => pontoNoAnel(lat, lon, p[0]) && !p.slice(1).some(h => pontoNoAnel(lat, lon, h)));
+    }
+
+    /* --- IBGE: município existe na UF + malha (polígono) --- */
+    const ibgeMunicipios = {}, ibgePoligonos = {};
+
+    async function obterMunicipioIBGE(cidade, uf) {
+      if (!uf || !cidade) return null;
+      if (!ibgeMunicipios[uf]) {
+        try {
+          const r = await fetch(`https://servicodados.ibge.gov.br/api/v1/localidades/estados/${uf}/municipios`);
+          ibgeMunicipios[uf] = r.ok ? await r.json() : [];
+        } catch (e) { ibgeMunicipios[uf] = []; }
+      }
+      const alvo = normalizar(cidade).replace(/\s+/g, ' ');
+      let m = ibgeMunicipios[uf].find(x => normalizar(x.nome) === alvo);
+      if (!m) m = ibgeMunicipios[uf].find(x => similaridade(x.nome, cidade) >= 0.9);
+      return m || null;
+    }
+
+    async function obterPoligono(idIBGE) {
+      if (ibgePoligonos[idIBGE] !== undefined) return ibgePoligonos[idIBGE];
+      try {
+        const r = await fetch(`https://servicodados.ibge.gov.br/api/v3/malhas/municipios/${idIBGE}?formato=application/vnd.geo+json`);
+        ibgePoligonos[idIBGE] = r.ok ? await r.json() : null;
+      } catch (e) { ibgePoligonos[idIBGE] = null; }
+      return ibgePoligonos[idIBGE];
+    }
+
+    /* --- Provedores de geocodificação (todos retornam o mesmo formato) --- */
+    let ultimaChamadaNominatim = 0;
+    async function esperarNominatim() {
+      const espera = Math.max(0, 1100 - (Date.now() - ultimaChamadaNominatim));
+      ultimaChamadaNominatim = Date.now() + espera;
+      if (espera) await new Promise(r => setTimeout(r, espera));
+    }
+
+    const GEOCODERS = {
+      async nominatim(q) {
+        await esperarNominatim();
+        const r = await (await fetch(`https://nominatim.openstreetmap.org/search?format=jsonv2&addressdetails=1&limit=1&countrycodes=br&accept-language=pt-BR&q=${encodeURIComponent(q)}`)).json();
+        const a = r[0]; if (!a) return null;
+        const ad = a.address || {};
+        return { fonte: 'Nominatim', lat: +a.lat, lon: +a.lon, cidade: ad.city || ad.town || ad.village || ad.municipality, rua: ad.road };
+      },
+      async photon(q) {
+        const j = await (await fetch(`https://photon.komoot.io/api/?limit=1&q=${encodeURIComponent(q)}`)).json();
+        const f = j.features?.[0]; if (!f) return null;
+        const p = f.properties;
+        if (p.countrycode && p.countrycode !== 'BR') return null;
+        return { fonte: 'Photon', lat: f.geometry.coordinates[1], lon: f.geometry.coordinates[0], cidade: p.city || p.town || p.county, rua: p.street };
+      },
+      async here(q) {
+        const j = await (await fetch(`https://geocode.search.hereapi.com/v1/geocode?q=${encodeURIComponent(q)}&in=countryCode:BRA&apiKey=${hereApiKey}`)).json();
+        const i = j.items?.[0]; if (!i) return null;
+        return { fonte: 'HERE', lat: i.position.lat, lon: i.position.lng, cidade: i.address?.city, rua: i.address?.street };
+      },
+      async mapbox(q) {
+        const j = await (await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?access_token=${mapboxToken}&country=br&limit=1`)).json();
+        const f = j.features?.[0]; if (!f) return null;
+        return { fonte: 'Mapbox', lat: f.center[1], lon: f.center[0], cidade: f.context?.find(c => c.id.startsWith('place'))?.text, rua: f.properties?.address ? f.text : undefined };
+      }
+    };
+
+    async function reverseGeocode(lat, lon) {
+      try {
+        const j = await (await fetch(`https://photon.komoot.io/reverse?lat=${lat}&lon=${lon}`)).json();
+        const p = j.features?.[0]?.properties || {};
+        return { cidade: p.city || p.town || p.village || p.county, rua: p.street || p.name };
+      } catch (e) { return {}; }
+    }
+
+    async function validarCEP(cep) {
+      const limpo = (cep || '').replace(/\D/g, '');
+      if (limpo.length !== 8) return null;
+      try {
+        const r = await fetch(`https://brasilapi.com.br/api/cep/v2/${limpo}`);
+        return r.ok ? await r.json() : null;
+      } catch (e) { return null; }
+    }
+
+    /* --- Verificação completa de um item --- */
+    async function verificarItem(item) {
+      const temRua = item.Rua && !['nan', 'null', 'undefined', ''].includes(item.Rua.toLowerCase().trim());
+      const query = [temRua ? item.Rua : '', item.Bairro, item.Cidade && `${item.Cidade} - ${item.SiglaUF}`, 'Brasil'].filter(Boolean).join(', ');
+      const chave = normalizar(query + ' ' + (item.CEP || ''));
+      if (cacheGeocodificacao[chave] && cacheGeocodificacao[chave].status) return cacheGeocodificacao[chave];
+
+      // 1) Geocodifica em todos os provedores disponíveis
+      const provedores = ['nominatim', 'photon'];
+      if (hereApiKey) provedores.push('here');
+      if (mapboxToken) provedores.push('mapbox');
+      const candidatos = (await Promise.all(provedores.map(p => GEOCODERS[p](query).catch(() => null))))
+        .filter(c => c && coordenadaValidaBrasil(c.lat, c.lon));
+
+      // 2) IBGE: município existe na UF? Pega o polígono
+      const mun = await obterMunicipioIBGE(item.Cidade, item.SiglaUF);
+      const poligono = mun ? await obterPoligono(mun.id) : null;
+
+      // 3) Escolhe o candidato que cai DENTRO do município da planilha
+      const dentro = poligono ? candidatos.filter(c => pontoNoPoligono(c.lat, c.lon, poligono)) : candidatos;
+      const escolhido = dentro[0] || null;
+
+      let pts = 0, max = 0;
+      const ok = [], falhas = [];
+      const crit = (nome, peso, passou, aplica = true) => {
+        if (!aplica) return;
+        max += peso;
+        if (passou) { pts += peso; ok.push(nome); } else falhas.push(nome);
+      };
+
+      crit('Município existe na UF (IBGE)', 15, !!mun);
+      crit('Ponto dentro do município (IBGE)', 25, !!escolhido && !!poligono, !!poligono);
+
+      let rev = {};
+      if (escolhido) rev = await reverseGeocode(escolhido.lat, escolhido.lon);
+      const cidadeRev = rev.cidade || escolhido?.cidade;
+      const ruaRev = rev.rua || escolhido?.rua;
+      crit('Cidade confere (reverse)', 15, similaridade(cidadeRev, item.Cidade) >= 0.85);
+      crit('Rua confere', 15, similaridadeRua(ruaRev, item.Rua) >= 0.7, !!temRua);
+
+      if (item.CEP) {
+        const cepInfo = await validarCEP(item.CEP);
+        const cepOk = cepInfo && similaridade(cepInfo.city, item.Cidade) >= 0.85 && cepInfo.state === item.SiglaUF
+          && (!temRua || !cepInfo.street || similaridadeRua(cepInfo.street, item.Rua) >= 0.6);
+        crit('CEP confere (BrasilAPI)', 10, !!cepOk);
       }
 
-      if (item.Cidade) {
-        const queryCidade = [item.Cidade, item.SiglaUF, 'Brasil'].filter(Boolean).join(', ');
-        const posCidade = await buscarAquiAPIsCascata(queryCidade);
-        if (posCidade) return { pos: posCidade, precisao: 'cidade' };
-      }
+      crit('Provedores concordam (<300 m)', 20,
+        !!escolhido && dentro.some(c => c !== escolhido && haversine([c.lat, c.lon], [escolhido.lat, escolhido.lon]) < 300),
+        candidatos.length > 1);
 
-      return { pos: resolverCoordenadaCidadeEstrita(item.Cidade, item.SiglaUF), precisao: 'cidade_offline' };
+      const score = max ? Math.round((pts / max) * 100) : 0;
+      let status = score >= 80 ? 'confirmado' : score >= 50 ? 'revisar' : 'falhou';
+      if (!escolhido) status = 'falhou'; // nenhum ponto dentro da cidade correta
+
+      const resultado = {
+        pos: escolhido ? [escolhido.lat, escolhido.lon]
+                       : resolverCoordenadaCidadeEstrita(item.Cidade, item.SiglaUF),
+        precisao: escolhido ? (ruaRev ? 'rua' : 'cidade') : 'cidade_offline',
+        score, status, ok, falhas,
+        fonte: escolhido?.fonte || '—',
+        rejeitados: candidatos.filter(c => !dentro.includes(c)).map(c => `${c.fonte}: ${c.lat.toFixed(4)}, ${c.lon.toFixed(4)}`)
+      };
+      if (candidatos.length) { cacheGeocodificacao[chave] = resultado; salvarCacheGeocodificacao(); }
+      return resultado;
     }
 
     async function iniciarGeocodificacaoDetalhada(lista) {
@@ -933,9 +1039,12 @@
 
       for (const item of lista) {
         if (cancelarGeocodificacaoFlag) break;
-        const resultado = await geocodificarItemDetalhado(item);
-        item.pos = resultado.pos;
-        item.precisao = resultado.precisao;
+        try {
+          Object.assign(item, await verificarItem(item));
+        } catch (e) {
+          console.error('Falha ao verificar OS', item.CodOS, e);
+          Object.assign(item, { status: 'falhou', score: 0, ok: [], falhas: ['Erro inesperado na verificação'], fonte: '—', rejeitados: [] });
+        }
 
         concluidos++;
         const pct = Math.round((concluidos / total) * 100);
@@ -961,7 +1070,7 @@
       // 2. Tenta correspondência parcial (contém a palavra-chave)
       for (const alvo of alvos) {
         const alvoNorm = normalizar(alvo);
-        const achou = colunasNorm.find(c => c.norm.includes(alvoNorm) || alvoNorm.includes(c.norm));
+        const achou = colunasNorm.find(c => c.norm && (c.norm.includes(alvoNorm) || alvoNorm.includes(c.norm)));
         if (achou) return achou.original;
       }
 
@@ -1014,7 +1123,7 @@
       const rawRows = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
       if (rawRows.length === 0) { alert("Aba vazia ou inválida."); return; }
 
-      let headerRowIndex = 0, colunas = [], cOS = null, cRegiao = null, cCliente = null, cLocal = null, cEndereco = null, cBairro = null, cCidade = null, cUF = null;
+      let headerRowIndex = 0, colunas = [], cOS = null, cRegiao = null, cCliente = null, cLocal = null, cEndereco = null, cBairro = null, cCidade = null, cUF = null, cCEP = null;
 
       for (let r = 0; r < Math.min(rawRows.length, 15); r++) {
         const linha = (rawRows[r] || []).map(cell => String(cell || "").trim());
@@ -1028,6 +1137,7 @@
           cLocal = mapearColuna(linha, ["LocalAtendimento", "Local"]);
           cBairro = mapearColuna(linha, ["Bairro"]);
           cUF = mapearColuna(linha, ["SiglaUF", "UF"]);
+          cCEP = linha.find(c => ["CEP", "CODIGO POSTAL"].includes(normalizar(c))) || null;
           break;
         }
       }
@@ -1062,7 +1172,7 @@
         const enderecoCompleto = partesEndereco.join(", ") || `${cidVal} - ${ufVal}`;
 
         const item = {
-          CodOS: codOS, Cidade: cidVal, SiglaUF: ufVal, Rua: ruaPura, Bairro: bairroPuro,
+          CodOS: codOS, Cidade: cidVal, SiglaUF: ufVal, CEP: cCEP && row[cCEP] ? String(row[cCEP]).trim() : "", Rua: ruaPura, Bairro: bairroPuro,
           Endereco: ruaPura || enderecoCompleto, EnderecoCompleto: enderecoCompleto,
           LocalAtendimento: localNome, Intervencao: cInterv && row[cInterv] ? String(row[cInterv]).trim() : "Não Informado",
           Cliente: clienteVal, Regiao: regiaoVal, SLA: slaFinal, pos: resolverCoordenadaRapida(cidVal, ufVal, i), precisao: 'cidade_offline'
@@ -1160,10 +1270,13 @@
         const cor = obterCorPrioritaria(grupo.map(g => g.Intervencao));
         const raio = Math.min(9 + (total * 0.2), 28);
         const diam = Math.round(raio * 2);
+        const ordemStatus = { falhou: 0, revisar: 1, confirmado: 2 };
+        const piorStatus = grupo.reduce((p, g) => (ordemStatus[g.status ?? 'confirmado'] < ordemStatus[p] ? (g.status ?? 'confirmado') : p), 'confirmado');
+        const anel = grupo.some(g => g.status) ? `box-shadow:0 0 0 3px ${STATUS_COR[piorStatus]};` : '';
 
         const customIcon = L.divIcon({
           className: 'custom-cluster-icon',
-          html: `<div style="background-color:${cor}; width:${diam}px; height:${diam}px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px;">${total}</div>`,
+          html: `<div style="background-color:${cor}; width:${diam}px; height:${diam}px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:11px; ${anel}">${total}</div>`,
           iconSize: [diam, diam], iconAnchor: [raio, raio]
         });
 
@@ -1174,6 +1287,10 @@
         grupo.forEach((ch, j) => {
           htmlPopup += `<b>OS:</b> ${ch.CodOS} | <b>Cliente:</b> ${ch.Cliente}<br><b>Intervenção:</b> ${ch.Intervencao}<br>`;
           if (ch.SLA && !["S/N", "NAN"].includes(ch.SLA.toUpperCase())) htmlPopup += `<b>SLA:</b> ${ch.SLA}<br>`;
+          if (ch.status) {
+            htmlPopup += `<b>Verificação:</b> <span style="color:${STATUS_COR[ch.status]}; font-weight:700;">${ch.status.toUpperCase()} (${ch.score}/100)</span><br>
+              <small>✅ ${(ch.ok || []).join(' · ') || '—'}<br>⚠️ ${(ch.falhas || []).join(' · ') || '—'}<br>Fonte: ${ch.fonte}${ch.rejeitados?.length ? '<br>🚫 Fora da cidade: ' + ch.rejeitados.join('; ') : ''}</small><br>`;
+          }
           if (j < grupo.length - 1) htmlPopup += `<hr style="margin:4px 0; border-top:1px dashed var(--border-light);">`;
         });
         htmlPopup += `</div>`;
@@ -1252,7 +1369,7 @@
         const btn = document.createElement('button');
         btn.className = `chamado-item-btn ${chamadoSelecionado === ch.CodOS ? 'selected' : ''}`;
         btn.style.borderLeftColor = CORES_INTERVENCAO[ch.Intervencao] || '#464855';
-        btn.textContent = `${chamadoSelecionado === ch.CodOS ? '🔷' : '🔵'} [${ch.Cidade}/${ch.SiglaUF}] OS: ${ch.CodOS} - ${ch.LocalAtendimento}`;
+        btn.textContent = `${chamadoSelecionado === ch.CodOS ? '🔷' : (STATUS_EMOJI[ch.status] || '🔵')} [${ch.Cidade}/${ch.SiglaUF}] OS: ${ch.CodOS} - ${ch.LocalAtendimento}`;
         btn.addEventListener('click', () => {
           chamadoSelecionado = ch.CodOS;
           renderizarListaChamados(dfFinal);
